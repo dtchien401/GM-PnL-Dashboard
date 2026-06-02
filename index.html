@@ -40,47 +40,58 @@
   <div class="print-note">Source: CWG_BOD_WIP Report_Template.xlsx · Rows 9–15</div>
 </div>
 <script>
-// Data file created by Office Script and uploaded to GitHub.
-// If bod-data.json sits beside index.html in the same repo/folder, keep this as './bod-data.json'.
-// If you want to load from GitHub raw directly, replace with the raw URL.
+// =============================
+// DATA SOURCE
+// =============================
+// Case 1: bod-data.json is in the same GitHub Pages folder as index.html
 const DATA_URL = './bod-data.json';
+
+// Case 2: if JSON is in another repo/path, replace above with raw GitHub URL, for example:
+// const DATA_URL = 'https://raw.githubusercontent.com/dtchien401/CWG-BOD/main/bod-data.json';
 
 let meetings = [];
 let current = 0;
 
 function esc(s){
-  return String(s || '').replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+  return String(s || '').replace(/[&<>]/g, function(m){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;'}[m];
+  });
 }
 
 function splitLines(s){
-  return esc(s).replace(/
-/g, '<br>');
+  return esc(s).replace(/\n/g, '<br>');
 }
 
 function isEnglishLine(line){
   const t = String(line || '').trim();
   if(!t) return false;
 
-  // If the line contains Vietnamese characters, treat it as Vietnamese.
+  // Vietnamese characters = Vietnamese line
   const viChars = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
   if(viChars.test(t)) return false;
 
-  // Common English business terms in this BOD report.
-  const enWords = /(the|and|or|to|for|from|with|company|organizational|organization|structure|workforce|downsizing|plan|division|experience|needs|completion|other|have|been|completed|clubs|reduction|timeline|target|minimize|losses|mitigate|media|risks|revenue|pricing|policy|business|sales|customer|growth|head office|department|roll out|model|formalize|provide|standardized|roles|responsibilities|current|status|challenges|directive|decision|action|ensure|develop|issue|implementation|appointment|assessment|effective|july|june|club|p&l|margin|cogs|crm)/i;
+  // English business terms commonly appearing in this report
+  const enWords = /\b(the|and|or|to|for|from|with|company|organizational|organization|structure|workforce|downsizing|plan|division|experience|needs|completion|other|have|been|completed|clubs|reduction|timeline|target|minimize|losses|mitigate|media|risks|revenue|pricing|policy|business|sales|customer|growth|head office|department|roll out|model|formalize|provide|standardized|roles|responsibilities|current|status|challenges|directive|decision|action|ensure|develop|issue|implementation|appointment|assessment|effective|july|june|club|p&l|margin|cogs|crm|talent|review|appointment|board|directors)\b/i;
 
   return enWords.test(t) || /^[A-Z][A-Za-z0-9 ,.&()/%:'+\-]+$/.test(t);
 }
 
 function renderBilingual(s){
   return String(s || '')
-    .split('
-')
-    .filter(x => x.trim())
-    .map(line => {
+    .split('\n')
+    .filter(function(x){ return x.trim(); })
+    .map(function(line){
       const safe = esc(line.trim());
-      return `<div class="bi-line ${isEnglishLine(line) ? 'en' : 'vi'}">${safe}</div>`;
+      return '<div class="bi-line ' + (isEnglishLine(line) ? 'en' : 'vi') + '">' + safe + '</div>';
     })
     .join('');
+}
+
+function normalizeMeeting(m, i){
+  return {
+    meta: m && m.meta ? m.meta : { sheet: 'Meeting ' + (i + 1) },
+    items: Array.isArray(m && m.items) ? m.items : []
+  };
 }
 
 function renderTabs(){
@@ -92,25 +103,24 @@ function renderTabs(){
     return;
   }
 
-  tabs.innerHTML = meetings.map((m, i) => {
-    const sheetName = m && m.meta && m.meta.sheet ? m.meta.sheet : `Meeting ${i + 1}`;
-    return `<button class="tab ${i === current ? 'active' : ''}" onclick="showMeeting(${i}, this)">${esc(sheetName)}</button>`;
+  tabs.innerHTML = meetings.map(function(m, i){
+    const meeting = normalizeMeeting(m, i);
+    const sheetName = meeting.meta.sheet || ('Meeting ' + (i + 1));
+    return '<button class="tab ' + (i === current ? 'active' : '') + '" onclick="showMeeting(' + i + ', this)">' + esc(sheetName) + '</button>';
   }).join('');
 }
 
 function render(){
   const content = document.getElementById('content');
+  if(!content) return;
 
   if(!meetings.length){
-    content.innerHTML = `
-      <div class="empty">
-        Không tìm thấy dữ liệu meeting. Vui lòng kiểm tra file <b>bod-data.json</b>.
-      </div>`;
+    content.innerHTML = '<div class="empty">Không tìm thấy dữ liệu meeting. Vui lòng kiểm tra file <b>bod-data.json</b>.</div>';
     return;
   }
 
-  const m = meetings[current] || meetings[0];
-  const meta = (m && m.meta) ? m.meta : {};
+  const m = normalizeMeeting(meetings[current] || meetings[0], current);
+  const meta = m.meta || {};
   const items = Array.isArray(m.items) ? m.items : [];
 
   content.innerHTML = `
@@ -129,7 +139,7 @@ function render(){
       <div class="count">${items.length} agenda item(s)</div>
     </div>
 
-    ${items.length ? items.map(item => `
+    ${items.length ? items.map(function(item){ return `
       <article class="item">
         <div class="item-head">
           <div class="num">${esc(item.no)}</div>
@@ -145,40 +155,42 @@ function render(){
         </div>
 
         <div class="item-body">
-          <div class="col">
-            <h3>Current Status / Challenges</h3>
-            <div class="text">${renderBilingual(item.status)}</div>
-          </div>
-          <div class="col">
-            <h3>Directive</h3>
-            <div class="text">${renderBilingual(item.directive)}</div>
-          </div>
-          <div class="col">
-            <h3>Decision / Action Plan</h3>
-            <div class="text">${renderBilingual(item.decision)}</div>
-          </div>
+          <div class="col"><h3>Current Status / Challenges</h3><div class="text">${renderBilingual(item.status)}</div></div>
+          <div class="col"><h3>Directive</h3><div class="text">${renderBilingual(item.directive)}</div></div>
+          <div class="col"><h3>Decision / Action Plan</h3><div class="text">${renderBilingual(item.decision)}</div></div>
         </div>
-      </article>
-    `).join('') : `
-      <div class="empty">
-        Sheet này hiện chưa có nội dung dữ liệu ở các dòng agenda.
-      </div>
-    `}
+      </article>`; }).join('') : '<div class="empty">Sheet này hiện chưa có nội dung dữ liệu ở các dòng agenda.</div>'}
   `;
 }
 
 function showMeeting(i, el){
   current = i;
-  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(function(b){ b.classList.remove('active'); });
   if(el) el.classList.add('active');
   render();
 }
 
+function showLoadError(message){
+  const content = document.getElementById('content');
+  if(!content) return;
+  content.innerHTML = `
+    <div class="empty">
+      Không load được <b>bod-data.json</b>.<br><br>
+      ${esc(message || '')}<br><br>
+      Kiểm tra nhanh:<br>
+      1. File <b>bod-data.json</b> phải nằm cùng folder với <b>index.html</b> trên GitHub Pages; hoặc<br>
+      2. Nếu JSON nằm repo/path khác, sửa biến <b>DATA_URL</b> thành raw GitHub URL.<br><br>
+      Lưu ý: nếu mở index bằng file local trên máy, browser có thể chặn fetch. Hãy test qua GitHub Pages hoặc Live Server.
+    </div>`;
+}
+
 async function loadData(){
   try{
-    const res = await fetch(`${DATA_URL}?v=${Date.now()}`);
+    const url = DATA_URL + (DATA_URL.includes('?') ? '&' : '?') + 'v=' + Date.now();
+    const res = await fetch(url, { cache: 'no-store' });
+
     if(!res.ok){
-      throw new Error(`Cannot load ${DATA_URL}. HTTP ${res.status}`);
+      throw new Error('HTTP ' + res.status + ' when loading ' + DATA_URL);
     }
 
     const data = await res.json();
@@ -190,16 +202,11 @@ async function loadData(){
 
     const note = document.querySelector('.print-note');
     if(note){
-      note.textContent = `Source: ${data.source || 'bod-data.json'} · Updated: ${data.updatedAt || 'N/A'}`;
+      note.textContent = 'Source: ' + (data.source || 'bod-data.json') + ' · Updated: ' + (data.updatedAt || 'N/A');
     }
   }catch(err){
     console.error(err);
-    document.getElementById('content').innerHTML = `
-      <div class="empty">
-        Không load được <b>bod-data.json</b>.<br>
-        Hãy kiểm tra file JSON đã được upload cùng thư mục với index.html trên GitHub chưa.<br>
-        Nếu JSON nằm ở repo/path khác, hãy sửa biến <b>DATA_URL</b> trong index.html.
-      </div>`;
+    showLoadError(err && err.message ? err.message : String(err));
   }
 }
 
