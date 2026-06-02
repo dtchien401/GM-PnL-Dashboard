@@ -27,64 +27,183 @@
   <section class="hero">
     <div class="topline"><div class="brand">California Fitness & Yoga</div><div class="badge">Board Action Tracker · WIP</div></div>
     <h1 class="title">Báo cáo Hội Đồng Quản Trị<br/>Board of Directors</h1>
-    <div class="subtitle">Web view được thiết kế lại từ file Excel WIP Report Template. Nội dung giữ song ngữ Việt / Anh, phù hợp để trình bày trong cuộc họp hoặc gửi dạng executive tracker.</div>
+    <div class="subtitle">Web view tự động lấy dữ liệu từ bod-data.json xuất từ Excel. Nội dung giữ song ngữ Việt / Anh, phù hợp để trình bày trong cuộc họp hoặc gửi dạng executive tracker.</div>
     <div class="controls">
       <button class="btn active">Song ngữ Việt / English</button>
       <button class="btn secondary" onclick="window.print()">Print / PDF</button>
     </div>
   </section>
 
-  <div class="tabs">
-    <button class="tab active" onclick="showMeeting(0,this)">WIP 2 June</button>
-    <button class="tab" onclick="showMeeting(1,this)">WIP 16 June</button>
-  </div>
+  <div class="tabs" id="tabs"></div>
 
   <main id="content"></main>
   <div class="print-note">Source: CWG_BOD_WIP Report_Template.xlsx · Rows 9–15</div>
 </div>
 <script>
-const meetings = [{"meta":{"sheet":"WIP 2 June","company":"CALIFORNIA FITNESS & YOGA","title":"BÁO CÁO HỘI ĐỒNG QUẢN TRỊ/BOARD OF DIRECTORS","purpose":"Mangement meeting","location":"HO HCM","time":"10am - 12am 2 June 2026","chairperson":"Phan Ngọc Huy - Nguyễn Đặng Quỳnh Anh","secretary":""},"items":[{"no":"1","discussion":"Ban hành SĐTC/Cấu trúc Công ty và quyết định kế hoạch tinh giản nhân sự\nIssue Organizational Charts (OC) / Company Structure and Review Workforce Downsizing Plan","status":"- SĐTC toàn Công ty: đã ban hành\n- SĐTC chức năng: \nCần hoàn thiện: Khối Sản phẩm (Gerry); Khối Trải nghiệm (Joel)\nCác Khối khác: đã xong\n- Kế hoạch tinh giản: \nHO 30%\nCác clbs: cắt theo tier, từ 15% đến 50\n- Company-wide organizational chart has been issued.\n- Functional organizational chart: \nNeeds completion for Product Division (Gerry) and Experience Division (Joel). \nOther divisions have been completed.\n- Workforce downsizing plan: HO: 30%\nClubs: reduction by tiers, from 15% to 50%","directive":"1. Cần hoàn thiện tất cả sơ đồ tổ chức Khối chức năng để ban hành cho toàn công ty nắm luồng phối hợp & nhân sự chịu trách nhiệm từng khâu\n2. Các phòng ban HO thực hiện tinh giản chưa triệt để, cần quyết liệt hơn\n1. All divisional organizational charts need to be finalized and issued company-wide to ensure clear reporting lines and accountability for each position.\n2. Head Office departments have not carried out workforce optimization thoroughly and need to take more decisive actions.","decision":"- Deputy CEO ấn định & xây dựng sơ đồ chức năng cho các Khối chưa hoàn thành.\n- Tinh giản thêm tại HO: HR, MKT, các nhóm trợ lý & chức năng không cần thiết, trùng lặp công việc.\n- Deputy CEO to finalize and establish functional organizational charts for divisions that have not yet completed them.\n- Further workforce reduction at Head Office, including HR, Marketing, assistant teams, and other non-essential or overlapping functions.","pic":"Quỳnh Anh + HR","deadline":"05/06/2026"},{"no":"2","discussion":"Đánh giá năng lực; Bổ nhiệm GM toàn hệ thống clb và Ban hành Cấu trúc nhân sự tại clb\nTalent Assessment, GM Appointment, and Club Organizational Structure Implementation","status":"- Thống nhất bộ tiêu chí đánh giá năng lực GM & lộ trình đánh giá/tái đào tạo/thay thế.\n- Hoàn thành đánh giá 28/30 GM hiện nay của Hệ thống\n- Established the competency assessment criteria for GMs and defined the evaluation, development, and succession roadmap.\n- Completed assessments for 28 of the 30 current GMs within the network.","directive":"Áp dụng mô hình GM đồng loạt nhưng có chọn lọc & theo lộ trình nhằm đảm bảo tính tăng trưởng liên tục của hệ thống\nRoll out the GM model selectively and according to a defined roadmap, balancing organizational transformation with the need to maintain growth momentum across the network.","decision":"- Chính thức bổ nhiệm danh sách GM tại tất cả clb\n- Trang bị & cung cấp cho GM bộ công cụ nâng cao năng lực:\nP&L club; Bộ template làm việc, báo cáo, theo dõi; Khung sơ đồ tổ chức & nhân sự tại clb\n- Ban hành Sơ đồ tổ chức nhân sự tại clb đi kèm chức danh, cấp bậc & mô tả công việc\n- Formalize GM appointments across all clubs.\n- Provide GMs with essential management tools (Club P&L, reporting templates, performance tracking tools, and organizational frameworks).\n- Roll out a standardized club organizational structure with defined roles, grades, responsibilities, and job descriptions.","pic":"Anh Huy\nQuỳnh Anh","deadline":"04/06/2026"},{"no":"3","discussion":"Xây dựng & Chuyển đổi mô hình kinh doanh mới (Bắt đầu từ tháng 7/2026)/\nNew Business Model Development & Transformation (Effective July 2026)","status":"- Xây dựng chính sách giá mới: hoàn thành cơ bản bộ giá mới, tuy nhiên cần hoạch định rõ hơn cog/margin/gói mới theo kênh & theo hình thức bán\n- Kiểm soát thông tin giá mới: Hiện nay các nhân viên clb tự tung lan truyền thông tin về gói mới dù không chính thống & xác thực, gây ảnh hưởng đến hệ thống kinh doanh và trải nghiệm khách hàng\nNew Pricing Policy: Core pricing framework completed; further alignment required on COGS, margins, package structure, sales channels, and sales models.\nPricing Information Control: Unofficial circulation of new package information by club staff is creating confusion and potential risks to sales performance and customer experience.","directive":"1. Chính sách giá mới cần minh bạch & đáp ứng được tăng trường của hệ thống lẫn nhu cầu sử dụng của Hội viên\n2. Áp dụng chế tài phạt nghiêm khắc với các nhân sự sử dụng thông tin gây ảnh hưởng tiêu cực/\nEnsure the new pricing policy is transparent, sustainable, and aligned with both system growth objectives and member needs.\nImplement strict disciplinary measures against any employee who shares or uses information in a way that adversely affects the business, operations, or customer experience.","decision":"- Xây dựng lại giá bán theo dịch vụ lẻ, theo mã số sản phẩm, rõ ràng COG & margin nhằm: chuẩn hóa hệ thống bán hàng & chuẩn hóa bộ dữ liệu CRM mới\nDevelop a standardized pricing structure by service and product code, with clear COGS and margins, to enhance sales governance and standardize the new CRM database","pic":"Quỳnh Anh\nHải Đăng (Daniel) \nFIN","deadline":"12/06/2026"},{"no":"4","discussion":"Đảm bảo doanh số trong ngắn hạn/\nEnsure Short-Term Revenue","status":"Mục tiêu đạt target 4.9M (USD) trong tháng 6/\nJune 2026 Revenue Target: USD 4.9M","directive":"1. Phân bổ P&L clb\n2. Ban hành chính sách bán hàng áp dụng trong tháng 6 nhằm thúc đẩy tăng trường\n1. Allocate club-level P&L responsibilities\n2. Issue sales promotion for June to drive revenue growth","decision":"- Đảm bảo tốc độ tăng trưởng doanh số tại các clb profitable\n- Thúc đẩy GM tại các clb chưa tăng trưởng: thúc đẩy kinh doanh, khai thác khách hàng mới & cũ\n- Maintain revenue growth at profitable clubs.\n- Improve GM performance at non-growing clubs through stronger sales execution and customer acquisition/retention initiatives.","pic":"Quỳnh Anh\nFIN","deadline":"30/06/2026"},{"no":"5","discussion":"Lộ trình đóng/mở clb\nClosesure process","status":"Quyết định closing: CPT, PCH, VTC, GVC","directive":"1. Thời gian: dự tính tháng 8/2026\n2. Giảm thiểu thiệt hại & giảm thiểu khủng hoảng truyền thông/\n1. Timeline: Target August 2026\n2. Minimize losses and mitigate media/reputational risks","decision":"Các lãnh đạo chủ chốt đề ra phương án, giải pháp cụ thể/\nKey leaders to develop and propose specific action plans and solutions.","pic":"BOD","deadline":"TBC"}]},{"meta":{"sheet":"WIP 16 June","company":"CALIFORNIA FITNESS & YOGA","title":"BÁO CÁO HỘI ĐỒNG QUẢN TRỊ/BOARD OF DIRECTORS","purpose":"Mangement meeting","location":"HO HCM","time":"10am - 12am 16 June 2026","chairperson":"Phan Ngọc Huy - Nguyễn Đặng Quỳnh Anh","secretary":""},"items":[]}];
+// Data file created by Office Script and uploaded to GitHub.
+// If bod-data.json sits beside index.html in the same repo/folder, keep this as './bod-data.json'.
+// If you want to load from GitHub raw directly, replace with the raw URL.
+const DATA_URL = './bod-data.json';
+
+let meetings = [];
 let current = 0;
-function esc(s){return (s||'').replace(/[&<>]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));}
-function splitLines(s){return esc(s).replace(/\n/g,'<br>')}
-function isEnglishLine(line){
-  const t=(line||'').trim();
-  if(!t) return false;
-  const viChars=/[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
-  if(viChars.test(t)) return false;
-  const enWords=/\b(the|and|or|to|for|from|with|company|organizational|structure|workforce|downsizing|plan|division|experience|needs|completion|other|have|been|completed|clubs|reduction|timeline|target|minimize|losses|mitigate|media|risks|revenue|pricing|policy|business|sales|customer|growth|head office|department|roll out|model|formalize|provide|standardized|roles|responsibilities|current|status|challenges|directive|decision|action)\b/i;
-  return enWords.test(t) || /^[A-Z][A-Za-z0-9 ,.&()/%:'+-]+$/.test(t);
+
+function esc(s){
+  return String(s || '').replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
 }
+
+function splitLines(s){
+  return esc(s).replace(/
+/g, '<br>');
+}
+
+function isEnglishLine(line){
+  const t = String(line || '').trim();
+  if(!t) return false;
+
+  // If the line contains Vietnamese characters, treat it as Vietnamese.
+  const viChars = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+  if(viChars.test(t)) return false;
+
+  // Common English business terms in this BOD report.
+  const enWords = /(the|and|or|to|for|from|with|company|organizational|organization|structure|workforce|downsizing|plan|division|experience|needs|completion|other|have|been|completed|clubs|reduction|timeline|target|minimize|losses|mitigate|media|risks|revenue|pricing|policy|business|sales|customer|growth|head office|department|roll out|model|formalize|provide|standardized|roles|responsibilities|current|status|challenges|directive|decision|action|ensure|develop|issue|implementation|appointment|assessment|effective|july|june|club|p&l|margin|cogs|crm)/i;
+
+  return enWords.test(t) || /^[A-Z][A-Za-z0-9 ,.&()/%:'+\-]+$/.test(t);
+}
+
 function renderBilingual(s){
-  return (s||'').split('\n').filter(x=>x.trim()).map(line=>{
-    const safe=esc(line.trim());
-    return `<div class="bi-line ${isEnglishLine(line)?'en':'vi'}">${safe}</div>`;
+  return String(s || '')
+    .split('
+')
+    .filter(x => x.trim())
+    .map(line => {
+      const safe = esc(line.trim());
+      return `<div class="bi-line ${isEnglishLine(line) ? 'en' : 'vi'}">${safe}</div>`;
+    })
+    .join('');
+}
+
+function renderTabs(){
+  const tabs = document.getElementById('tabs');
+  if(!tabs) return;
+
+  if(!meetings.length){
+    tabs.innerHTML = '';
+    return;
+  }
+
+  tabs.innerHTML = meetings.map((m, i) => {
+    const sheetName = m && m.meta && m.meta.sheet ? m.meta.sheet : `Meeting ${i + 1}`;
+    return `<button class="tab ${i === current ? 'active' : ''}" onclick="showMeeting(${i}, this)">${esc(sheetName)}</button>`;
   }).join('');
 }
-function render(){const m=meetings[current];document.getElementById('content').innerHTML=`
-  <div class="meta-grid">
-    <div class="meta-card"><div class="label">Purpose</div><div class="value">${esc(m.meta.purpose)}</div></div>
-    <div class="meta-card"><div class="label">Location</div><div class="value">${esc(m.meta.location)}</div></div>
-    <div class="meta-card"><div class="label">Time</div><div class="value">${esc(m.meta.time)}</div></div>
-    <div class="meta-card"><div class="label">Chairperson</div><div class="value">${esc(m.meta.chairperson)}</div></div>
-  </div>
-  <div class="section-head"><div><div class="label">Nội dung / Agenda</div><div class="section-title">${esc(m.meta.sheet)}</div></div><div class="count">${m.items.length || 6} agenda lines from template</div></div>
-  ${m.items.length ? m.items.map(item=>`
-    <article class="item">
-      <div class="item-head">
-        <div class="num">${esc(item.no)}</div>
-        <div class="topic">${renderBilingual(item.discussion)}</div>
-        <div class="owner"><div class="label">PIC</div><span class="pill">${splitLines(item.pic)}</span></div>
-        <div class="deadline"><div class="label">Deadline</div><span class="pill">${esc(item.deadline)}</span></div>
+
+function render(){
+  const content = document.getElementById('content');
+
+  if(!meetings.length){
+    content.innerHTML = `
+      <div class="empty">
+        Không tìm thấy dữ liệu meeting. Vui lòng kiểm tra file <b>bod-data.json</b>.
+      </div>`;
+    return;
+  }
+
+  const m = meetings[current] || meetings[0];
+  const meta = (m && m.meta) ? m.meta : {};
+  const items = Array.isArray(m.items) ? m.items : [];
+
+  content.innerHTML = `
+    <div class="meta-grid">
+      <div class="meta-card"><div class="label">Purpose</div><div class="value">${esc(meta.purpose)}</div></div>
+      <div class="meta-card"><div class="label">Location</div><div class="value">${esc(meta.location)}</div></div>
+      <div class="meta-card"><div class="label">Time</div><div class="value">${esc(meta.time)}</div></div>
+      <div class="meta-card"><div class="label">Chairperson</div><div class="value">${esc(meta.chairperson)}</div></div>
+    </div>
+
+    <div class="section-head">
+      <div>
+        <div class="label">Nội dung / Agenda</div>
+        <div class="section-title">${esc(meta.sheet)}</div>
       </div>
-      <div class="item-body">
-        <div class="col"><h3>Current Status / Challenges</h3><div class="text">${renderBilingual(item.status)}</div></div>
-        <div class="col"><h3>Directive</h3><div class="text">${renderBilingual(item.directive)}</div></div>
-        <div class="col"><h3>Decision / Action Plan</h3><div class="text">${renderBilingual(item.decision)}</div></div>
+      <div class="count">${items.length} agenda item(s)</div>
+    </div>
+
+    ${items.length ? items.map(item => `
+      <article class="item">
+        <div class="item-head">
+          <div class="num">${esc(item.no)}</div>
+          <div class="topic">${renderBilingual(item.discussion)}</div>
+          <div class="owner">
+            <div class="label">PIC</div>
+            <span class="pill">${splitLines(item.pic)}</span>
+          </div>
+          <div class="deadline">
+            <div class="label">Deadline</div>
+            <span class="pill">${esc(item.deadline)}</span>
+          </div>
+        </div>
+
+        <div class="item-body">
+          <div class="col">
+            <h3>Current Status / Challenges</h3>
+            <div class="text">${renderBilingual(item.status)}</div>
+          </div>
+          <div class="col">
+            <h3>Directive</h3>
+            <div class="text">${renderBilingual(item.directive)}</div>
+          </div>
+          <div class="col">
+            <h3>Decision / Action Plan</h3>
+            <div class="text">${renderBilingual(item.decision)}</div>
+          </div>
+        </div>
+      </article>
+    `).join('') : `
+      <div class="empty">
+        Sheet này hiện chưa có nội dung dữ liệu ở các dòng agenda.
       </div>
-    </article>`).join('') : `<div class="empty">Sheet này hiện là template trống trong file Excel. Các dòng 11–15 chưa có nội dung dữ liệu.</div>`}`;}
-function showMeeting(i,el){current=i;document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));el.classList.add('active');render();}
-render();
+    `}
+  `;
+}
+
+function showMeeting(i, el){
+  current = i;
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  if(el) el.classList.add('active');
+  render();
+}
+
+async function loadData(){
+  try{
+    const res = await fetch(`${DATA_URL}?v=${Date.now()}`);
+    if(!res.ok){
+      throw new Error(`Cannot load ${DATA_URL}. HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    meetings = Array.isArray(data.meetings) ? data.meetings : [];
+    current = 0;
+
+    renderTabs();
+    render();
+
+    const note = document.querySelector('.print-note');
+    if(note){
+      note.textContent = `Source: ${data.source || 'bod-data.json'} · Updated: ${data.updatedAt || 'N/A'}`;
+    }
+  }catch(err){
+    console.error(err);
+    document.getElementById('content').innerHTML = `
+      <div class="empty">
+        Không load được <b>bod-data.json</b>.<br>
+        Hãy kiểm tra file JSON đã được upload cùng thư mục với index.html trên GitHub chưa.<br>
+        Nếu JSON nằm ở repo/path khác, hãy sửa biến <b>DATA_URL</b> trong index.html.
+      </div>`;
+  }
+}
+
+loadData();
 </script>
 </body>
 </html>
