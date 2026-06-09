@@ -359,6 +359,14 @@
         </div>
 
         <div class="flex items-center gap-3">
+          <!-- Club Slicer for Admin View -->
+          <div class="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
+            <label for="club-select" class="text-xs font-semibold px-2 text-slate-500 hidden md:block">Club:</label>
+            <select id="club-select" class="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none pr-6 pl-1 py-1 cursor-pointer min-w-[140px]">
+              <option value="ALL">All Clubs</option>
+            </select>
+          </div>
+
           <!-- Time Range Slicer -->
           <div class="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
             <label for="month-select" class="text-xs font-semibold px-2 text-slate-500 hidden md:block">Chọn Kỳ:</label>
@@ -1056,23 +1064,82 @@
 
 
     // =========================
-    // EXTERNAL DATA LOADER
-    // This dashboard keeps HVP_DATA as fallback. If daily.json exists in the same Netlify site,
-    // it will override the revenue portion from the JSON exported by Office Script.
-    // Expected file path on Netlify/GitHub: ./daily.json
+    // EXTERNAL CSV DATA LOADER
+    // Reads ./daily.csv from the same Netlify/GitHub folder and maps it into this dashboard.
+    // CSV is expected to have rows by EOM + Club and flat columns such as NMS, PT, YI, Total, PTSS Paid...
+    // Admin view supports All Clubs plus each individual club from the CSV.
     // =========================
-    const EXTERNAL_DAILY_JSON_URL = './daily.json';
+    const EXTERNAL_DAILY_CSV_URL = './daily.csv';
+    let RAW_DAILY_RECORDS = [];
+    let CURRENT_CLUB = 'ALL';
+
+    function parseCsvText(text) {
+      const rows = [];
+      let row = [];
+      let cell = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        const next = text[i + 1];
+
+        if (ch === '"') {
+          if (inQuotes && next === '"') {
+            cell += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (ch === ',' && !inQuotes) {
+          row.push(cell);
+          cell = '';
+        } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+          if (ch === '\r' && next === '\n') i++;
+          row.push(cell);
+          if (row.some(v => String(v).trim() !== '')) rows.push(row);
+          row = [];
+          cell = '';
+        } else {
+          cell += ch;
+        }
+      }
+      row.push(cell);
+      if (row.some(v => String(v).trim() !== '')) rows.push(row);
+      return rows;
+    }
+
+    function csvToObjects(text) {
+      const matrix = parseCsvText(text);
+      if (!matrix.length) return [];
+      const headers = matrix[0].map(h => String(h || '').trim());
+      return matrix.slice(1).map(row => {
+        const obj = {};
+        headers.forEach((h, i) => obj[h] = row[i] == null ? '' : row[i]);
+        return obj;
+      });
+    }
 
     function toMonthEnd(dateText) {
       if (!dateText) return '';
-      const d = new Date(dateText);
-      if (isNaN(d.getTime())) return String(dateText).slice(0, 10);
+      const raw = String(dateText).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return raw.slice(0, 10);
       return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
     }
 
     function safeNum(value) {
-      const n = Number(value || 0);
+      if (value === undefined || value === null || value === '') return 0;
+      const cleaned = String(value).replace(/[$,%\s]/g, '').replace(/,/g, '');
+      const n = Number(cleaned);
       return Number.isFinite(n) ? n : 0;
+    }
+
+    function readField(row, names) {
+      for (const name of names) {
+        if (Object.prototype.hasOwnProperty.call(row, name)) return row[name];
+      }
+      return 0;
     }
 
     function upsertHVPRow(rowName, values, category = 'Revenue') {
@@ -1116,105 +1183,195 @@
         : HVP_DATA.months[HVP_DATA.months.length - 1];
     }
 
-    async function loadDailyJsonIntoDashboard() {
+    function rebuildClubSelect(records) {
+      const clubSelect = document.getElementById('club-select');
+      if (!clubSelect) return;
+      const clubs = Array.from(new Set(records.map(r => String(r.Club || r.club || '').trim()).filter(Boolean))).sort();
+      const current = localStorage.getItem('hvp_selected_club') || clubSelect.value || 'ALL';
+      clubSelect.innerHTML = '<option value="ALL">All Clubs</option>';
+      clubs.forEach(club => {
+        const option = document.createElement('option');
+        option.value = club;
+        option.textContent = club;
+        clubSelect.appendChild(option);
+      });
+      clubSelect.value = clubs.includes(current) ? current : 'ALL';
+      CURRENT_CLUB = clubSelect.value;
+    }
+
+    function setClubLabels() {
+      const label = CURRENT_CLUB === 'ALL' ? 'All Clubs' : CURRENT_CLUB;
+      document.querySelectorAll('aside h1, #mobile-sidebar h1').forEach(el => { el.textContent = label; });
+      const title = document.querySelector('header h2');
+      if (title) title.textContent = `${label} Financial & Operating Dashboard`;
+    }
+
+    function ensureRowsAlignedToMonths(months) {
+      const zeroRows = [
+        'Chi phí biến đổi theo doanh thu (Total Variable Cost)',
+        'Chi phí lương (Total Staffing cost)',
+        'Chi phí cố định (Total Fixed cost)',
+        'TỔNG CHI PHÍ (TOTAL COST)'
+      ];
+      zeroRows.forEach(name => upsertHVPRow(name, months.map(() => 0), 'Expense'));
+      upsertHVPRow('LỢI NHUẬN EBITDA', months.map((_, idx) => {
+        const rev = HVP_DATA.rows.find(r => r.name === 'TỔNG DOANH THU (Total Revenue)')?.values?.[idx] || 0;
+        return rev;
+      }), 'Profit');
+    }
+
+    function rebuildDashboardFromCsvRecords() {
+      const source = CURRENT_CLUB === 'ALL'
+        ? RAW_DAILY_RECORDS
+        : RAW_DAILY_RECORDS.filter(r => String(r.Club || r.club || '').trim() === CURRENT_CLUB);
+      if (!source.length) return false;
+
+      const monthSet = new Set();
+      source.forEach(r => monthSet.add(toMonthEnd(readField(r, ['EOM', 'eom', 'Date', 'date']))));
+      const months = Array.from(monthSet).filter(Boolean).sort();
+      if (!months.length) return false;
+
+      const byMonth = {};
+      months.forEach(m => {
+        byMonth[m] = {
+          nms: 0, pt: 0, yi: 0, supplement: 0, retail: 0, califresh: 0, hypoxi: 0, vas: 0, total: 0, califreshRetail: 0,
+          ptssPaid: 0, ptssTrial: 0, ptssFoc: 0, newPtClients: 0, uniqueBurn: 0,
+          sales: 0, media: 0, pns: 0, tm: 0, ol: 0, lwt: 0, referral: 0,
+          nmu: 0, nmsPifAmt: 0, nmsPif: 0, nmsPifMonth: 0, ptPifAmt: 0, ptPif: 0,
+          ptSSold: 0, ptssBurn: 0, guestMkt: 0, guestClub: 0
+        };
+      });
+
+      source.forEach(r => {
+        const m = toMonthEnd(readField(r, ['EOM', 'eom', 'Date', 'date']));
+        if (!byMonth[m]) return;
+        const b = byMonth[m];
+        b.nms += safeNum(readField(r, ['NMS']));
+        b.pt += safeNum(readField(r, ['PT']));
+        b.yi += safeNum(readField(r, ['YI', 'Y&I']));
+        b.supplement += safeNum(readField(r, ['Supplement']));
+        b.retail += safeNum(readField(r, ['Retail']));
+        b.califresh += safeNum(readField(r, ['Califresh']));
+        b.hypoxi += safeNum(readField(r, ['Hypoxi']));
+        b.vas += safeNum(readField(r, ['VAS']));
+        b.total += safeNum(readField(r, ['Total', 'Total Revenue']));
+        b.califreshRetail += safeNum(readField(r, ['Califresh and Retail', 'Califresh + Retail']));
+        b.ptssPaid += safeNum(readField(r, ['PTSS Paid']));
+        b.ptssTrial += safeNum(readField(r, ['PTSS Trial']));
+        b.ptssFoc += safeNum(readField(r, ['PTSS Initial/FOC']));
+        b.newPtClients += safeNum(readField(r, ['No of new PT clients']));
+        b.uniqueBurn += safeNum(readField(r, ['Number Unique CustomerBurn per Club']));
+        b.sales += safeNum(readField(r, ['Sales']));
+        b.media += safeNum(readField(r, ['Media']));
+        b.pns += safeNum(readField(r, ['PNS']));
+        b.tm += safeNum(readField(r, ['TM']));
+        b.ol += safeNum(readField(r, ['OL']));
+        b.lwt += safeNum(readField(r, ['LWT (Live Well Together)']));
+        b.referral += safeNum(readField(r, ['Referral (MKT)']));
+        b.nmu += safeNum(readField(r, ['No of NMU', 'NMU']));
+        b.nmsPifAmt += safeNum(readField(r, ['NMS Contract PIF amt']));
+        b.nmsPif += safeNum(readField(r, ['NMS Contract PIF']));
+        b.nmsPifMonth += safeNum(readField(r, ['NMS Contract PIF month']));
+        b.ptPifAmt += safeNum(readField(r, ['PT Contract PIF Amt']));
+        b.ptPif += safeNum(readField(r, ['PT Contract PIF']));
+        b.ptSSold += safeNum(readField(r, ['PT Ssold']));
+        b.ptssBurn += safeNum(readField(r, ['PTSS burn (Paid SS+MBS PTSS)']));
+        b.guestMkt += safeNum(readField(r, ['Guest from MKT']));
+        b.guestClub += safeNum(readField(r, ['No of guests from club deps']));
+      });
+
+      HVP_DATA.months = months;
+      const arr = (field) => months.map(m => Math.round(byMonth[m][field] || 0));
+      const totalFromComponents = (m) => byMonth[m].nms + byMonth[m].pt + byMonth[m].yi + byMonth[m].supplement + byMonth[m].retail + byMonth[m].califresh + byMonth[m].hypoxi + byMonth[m].vas;
+
+      upsertHVPRow('Doanh thu hội viên mới (NMS)', arr('nms'));
+      upsertHVPRow('Doanh thu HLV cá nhân (PT)', arr('pt'));
+      upsertHVPRow('Doanh thu Yoga & Group X (Y&I)', arr('yi'));
+      upsertHVPRow('Doanh thu Supplement', arr('supplement'));
+      upsertHVPRow('Doanh thu Bán lẻ (Retail)', arr('retail'));
+      upsertHVPRow('Doanh thu Califresh', arr('califresh'));
+      upsertHVPRow('Doanh thu Hypoxi', arr('hypoxi'));
+      upsertHVPRow('Doanh thu VAS', arr('vas'));
+      upsertHVPRow('Doanh thu Califresh & Retail', months.map(m => Math.round(byMonth[m].califreshRetail || (byMonth[m].califresh + byMonth[m].retail))));
+      upsertHVPRow('TỔNG DOANH THU (Total Revenue)', months.map(m => Math.round(byMonth[m].total || totalFromComponents(m))));
+      ensureRowsAlignedToMonths(months);
+
+      OPERATING_DATA = {};
+      months.forEach(m => {
+        const b = byMonth[m];
+        const totalGuest = b.guestMkt + b.guestClub;
+        const closing = totalGuest ? (b.nmu / totalGuest) * 100 : null;
+        const ssServe = b.ptssBurn || b.ptssPaid;
+        OPERATING_DATA[m] = {
+          pt: {
+            headcount: null,
+            ssSold: Math.round(b.ptSSold),
+            ssServe: Math.round(ssServe),
+            utilization: b.ptSSold ? (ssServe / b.ptSSold) * 100 : null,
+            burnPerHC: null,
+            burnPerHCDay: null,
+            ptPerHC: null,
+            avgUsdSSSold: b.ptSSold ? b.pt / b.ptSSold : null,
+            avgUsdPTContract: b.ptPif ? b.ptPifAmt / b.ptPif : null
+          },
+          member: {
+            active: Math.round(b.uniqueBurn),
+            newJoins: Math.round(b.nmu),
+            leavers: null,
+            netMovement: Math.round(b.nmu),
+            ptActiveClients: Math.round(b.uniqueBurn),
+            ptPenetration: null
+          },
+          guest: {
+            totalShow: Math.round(totalGuest),
+            nmu: Math.round(b.nmu),
+            closingNmu: closing
+          },
+          contracts: {
+            pt: Math.round(b.ptPif),
+            ces: Math.round(b.nmsPif),
+            kickfit: null,
+            mix: null,
+            pilates: null,
+            monthly: Math.round(b.nmsPifMonth),
+            physio: null,
+            hpx: null,
+            yi: null,
+            total: Math.round(b.ptPif + b.nmsPif + b.nmsPifMonth)
+          }
+        };
+      });
+
+      rebuildMonthSelectFromHVPData(document.getElementById('month-select')?.value);
+      setClubLabels();
+      return true;
+    }
+
+    async function loadDailyCsvIntoDashboard() {
       try {
-        const res = await fetch(EXTERNAL_DAILY_JSON_URL, { cache: 'no-store' });
+        const res = await fetch(EXTERNAL_DAILY_CSV_URL, { cache: 'no-store' });
         if (!res.ok) {
-          console.warn(`Cannot load ${EXTERNAL_DAILY_JSON_URL}. Using fallback HVP_DATA.`, res.status);
+          console.warn(`Cannot load ${EXTERNAL_DAILY_CSV_URL}. Using fallback HVP_DATA.`, res.status);
           return false;
         }
-
-        const payload = await res.json();
-        const records = Array.isArray(payload) ? payload : (payload.records || []);
-        if (!Array.isArray(records) || records.length === 0) {
-          console.warn('daily.json has no records. Using fallback HVP_DATA.');
+        const text = await res.text();
+        RAW_DAILY_RECORDS = csvToObjects(text);
+        if (!RAW_DAILY_RECORDS.length) {
+          console.warn('daily.csv has no records. Using fallback HVP_DATA.');
           return false;
         }
-
-        // Dashboard này đang là HVP Club. Nếu daily.json có nhiều club, chỉ lấy HVP.
-        // Nếu file chỉ có 1 club nhưng không ghi HVP, sẽ lấy toàn bộ để tránh trắng data.
-        let filtered = records.filter(r => String(r.club || '').trim().toUpperCase() === 'HVP');
-        if (filtered.length === 0) filtered = records;
-
-        const monthSet = new Set();
-        filtered.forEach(r => monthSet.add(r.eom || toMonthEnd(r.date)));
-
-        const months = Array.from(monthSet)
-          .filter(Boolean)
-          .sort();
-
-        if (months.length === 0) {
-          console.warn('daily.json has no valid months. Using fallback HVP_DATA.');
-          return false;
-        }
-
-        const byMonth = {};
-        months.forEach(m => {
-          byMonth[m] = {
-            nms: 0,
-            pt: 0,
-            yi: 0,
-            supplement: 0,
-            retail: 0,
-            califresh: 0,
-            hypoxi: 0,
-            vas: 0,
-            total: 0,
-            ptssPaid: 0,
-            ptssTrial: 0
-          };
-        });
-
-        filtered.forEach(r => {
-          const m = r.eom || toMonthEnd(r.date);
-          if (!byMonth[m]) return;
-
-          const rev = r.revenue || {};
-          const kpi = r.kpi || {};
-
-          byMonth[m].nms += safeNum(rev.nms);
-          byMonth[m].pt += safeNum(rev.pt);
-          byMonth[m].yi += safeNum(rev.yi);
-          byMonth[m].supplement += safeNum(rev.supplement);
-          byMonth[m].retail += safeNum(rev.retail);
-          byMonth[m].califresh += safeNum(rev.califresh);
-          byMonth[m].hypoxi += safeNum(rev.hypoxi);
-          byMonth[m].vas += safeNum(rev.vas);
-          byMonth[m].total += safeNum(rev.total);
-
-          byMonth[m].ptssPaid += safeNum(kpi.ptssPaid);
-          byMonth[m].ptssTrial += safeNum(kpi.ptssTrial);
-        });
-
-        HVP_DATA.months = months;
-
-        const arr = (field) => months.map(m => Math.round(byMonth[m][field]));
-
-        upsertHVPRow('Doanh thu hội viên mới (NMS)', arr('nms'));
-        upsertHVPRow('Doanh thu HLV cá nhân (PT)', arr('pt'));
-        upsertHVPRow('Doanh thu Yoga & Group X (Y&I)', arr('yi'));
-        upsertHVPRow('Doanh thu Supplement', arr('supplement'));
-        upsertHVPRow('Doanh thu Bán lẻ (Retail)', arr('retail'));
-        upsertHVPRow('Doanh thu Califresh', arr('califresh'));
-        upsertHVPRow('Doanh thu Hypoxi', arr('hypoxi'));
-        upsertHVPRow('Doanh thu VAS', arr('vas'));
-        upsertHVPRow('Doanh thu Califresh & Retail', months.map(m => Math.round(byMonth[m].califresh + byMonth[m].retail)));
-        upsertHVPRow('TỔNG DOANH THU (Total Revenue)', arr('total'));
-
-        // Nếu cost/EBITDA chưa có trong daily.json, giữ nguyên fallback cost.
-        rebuildMonthSelectFromHVPData(months[months.length - 1]);
-
-        console.log(`Loaded ${filtered.length} records from ${EXTERNAL_DAILY_JSON_URL}`);
-        return true;
+        rebuildClubSelect(RAW_DAILY_RECORDS);
+        const ok = rebuildDashboardFromCsvRecords();
+        console.log(`Loaded ${RAW_DAILY_RECORDS.length} rows from ${EXTERNAL_DAILY_CSV_URL}. Club filter: ${CURRENT_CLUB}`);
+        return ok;
       } catch (error) {
-        console.warn('Failed to load daily.json. Using fallback HVP_DATA.', error);
+        console.warn('Failed to load daily.csv. Using fallback HVP_DATA.', error);
         return false;
       }
     }
 
-
     // Dữ liệu vận hành lấy từ bảng P&L Summary đã cung cấp (Mar/Apr/May 2026)
-    const OPERATING_DATA = {
+    let OPERATING_DATA = {
       "2026-03-31": {
         pt: { headcount: 34, ssSold: 8109, ssServe: 4230, utilization: 52, burnPerHC: 123, burnPerHCDay: 4.0, ptPerHC: 3450, avgUsdSSSold: 23.18, avgUsdPTContract: 1352.27 },
         member: { active: 3795, newJoins: 85, leavers: 83, netMovement: 2, ptActiveClients: 435, ptPenetration: 11 },
@@ -2259,6 +2416,22 @@
 
     // Bộ lọc bảng P&L đã được gỡ bỏ theo GM Operating Dashboard mới
 
+    // Thay đổi club theo bộ chọn admin
+    const clubSelectEl = document.getElementById("club-select");
+    if (clubSelectEl) {
+      clubSelectEl.addEventListener("change", function(e) {
+        CURRENT_CLUB = e.target.value || "ALL";
+        localStorage.setItem("hvp_selected_club", CURRENT_CLUB);
+        if (RAW_DAILY_RECORDS.length) {
+          rebuildDashboardFromCsvRecords();
+          initRevenueTrendChart();
+        }
+        const selectedPeriod = document.getElementById("month-select")?.value || "YTD";
+        updateDashboard(selectedPeriod);
+        setLanguage(currentLang, false);
+      });
+    }
+
     // Thay đổi kỳ báo cáo theo bộ chọn
     document.getElementById("month-select").addEventListener("change", function(e) {
       updateDashboard(e.target.value);
@@ -2366,7 +2539,7 @@
       updateSidebarMTDDate();
       initLanguageToggle();
 
-      await loadDailyJsonIntoDashboard();
+      await loadDailyCsvIntoDashboard();
 
       initRevenueTrendChart();
 
