@@ -322,7 +322,7 @@
             <span>Diện tích CLB</span>
             <i class="fa-solid fa-maximize text-brand-500"></i>
           </div>
-          <div class="font-bold text-sm text-slate-800 dark:text-slate-200">
+          <div id="club-area-sidebar" class="font-bold text-sm text-slate-800 dark:text-slate-200">
             3,613.6 m²
           </div>
         </div>
@@ -361,10 +361,22 @@
         <div class="flex items-center gap-3">
           <!-- Club Slicer for Admin View -->
           <div class="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
-            <label for="club-select" class="text-xs font-semibold px-2 text-slate-500 hidden md:block">Club:</label>
-            <select id="club-select" class="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none pr-6 pl-1 py-1 cursor-pointer min-w-[140px]">
-              <option value="ALL">All Clubs</option>
-            </select>
+            <label for="club-search-input" class="text-xs font-semibold px-2 text-slate-500 hidden md:block">Club:</label>
+            <div class="relative">
+              <input
+                id="club-search-input"
+                list="club-datalist"
+                autocomplete="off"
+                placeholder="Search club..."
+                class="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none px-2 py-1 min-w-[170px] max-w-[220px]"
+              />
+              <datalist id="club-datalist">
+                <option value="All Clubs"></option>
+              </datalist>
+              <select id="club-select" class="hidden">
+                <option value="ALL">All Clubs</option>
+              </select>
+            </div>
           </div>
 
           <!-- Time Range Slicer -->
@@ -474,7 +486,7 @@
             <div class="absolute right-0 bottom-0 translate-y-1/4 translate-x-1/4 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl"></div>
             <div class="flex justify-between items-start">
               <div>
-                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Doanh thu / m² (3.6K m²)</p>
+                <p id="card-sqm-title" class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Doanh thu / m² (3.6K m²)</p>
                 <h3 id="card-sqm-rev" class="text-2xl font-extrabold text-slate-900 dark:text-white mt-1.5 transition-all">...</h3>
               </div>
               <span class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
@@ -846,7 +858,7 @@
           <span>CC, CS Productivity</span>
         </a>
       </nav>
-      <div class="border-t border-slate-100 pt-4 text-xs text-slate-400">
+      <div id="club-area-mobile" class="border-t border-slate-100 pt-4 text-xs text-slate-400">
         3,613.6 m² • Workout Club
       </div>
     </div>
@@ -1070,8 +1082,23 @@
     // Admin view supports All Clubs plus each individual club from the CSV.
     // =========================
     const EXTERNAL_DAILY_CSV_URL = './daily.csv';
+    const EXTERNAL_LOC_CSV_URL = './LOC.csv';
+    const EXTERNAL_TARGET_CSV_URL = './target.csv';
+    const EXTERNAL_STAFFING_COST_CSV_URL = './staffing-cost.csv';
+    const EXTERNAL_FIXED_COST_CSV_URL = './fixed-cost.csv';
+    const DEFAULT_CLUB_AREA_M2 = 3613.6;
     let RAW_DAILY_RECORDS = [];
+    let RAW_LOC_RECORDS = [];
+    let RAW_TARGET_RECORDS = [];
+    let RAW_STAFFING_COST_RECORDS = [];
+    let RAW_FIXED_COST_RECORDS = [];
+    let FIXED_COST_TARGET_MAP = {}; // club -> fixed cost budget lines from fixed-cost.csv
+    let STAFFING_COST_MAP = {}; // monthEnd -> club -> { departments, totalCost, totalHC, ptHC }
+    let CLUB_AREA_MAP = {};
+    let VALID_CLUB_SET = new Set();
+    let CLUB_TARGET_MAP = {};
     let CURRENT_CLUB = 'ALL';
+    let MONTH_DAY_COVERAGE = {}; // monthEnd -> { daysElapsed, daysInMonth, ratio } for target-to-date
 
     function parseCsvText(text) {
       const rows = [];
@@ -1111,12 +1138,595 @@
     function csvToObjects(text) {
       const matrix = parseCsvText(text);
       if (!matrix.length) return [];
-      const headers = matrix[0].map(h => String(h || '').trim());
+      const headers = matrix[0].map(h => String(h || '').replace(/^\uFEFF/, '').trim());
       return matrix.slice(1).map(row => {
         const obj = {};
         headers.forEach((h, i) => obj[h] = row[i] == null ? '' : row[i]);
         return obj;
       });
+    }
+
+    function csvToObjectsAutoHeader(text, requiredHeaders = []) {
+      const matrix = parseCsvText(text);
+      if (!matrix.length) return [];
+      let headerIndex = 0;
+      const normalizedRequired = requiredHeaders.map(h => String(h).trim().toLowerCase());
+      for (let i = 0; i < Math.min(matrix.length, 10); i++) {
+        const rowHeaders = matrix[i].map(h => String(h || '').replace(/^﻿/, '').trim().toLowerCase());
+        const matched = normalizedRequired.every(h => rowHeaders.includes(h));
+        if (matched) { headerIndex = i; break; }
+      }
+      const headers = matrix[headerIndex].map(h => String(h || '').replace(/^﻿/, '').trim());
+      return matrix.slice(headerIndex + 1).map(row => {
+        const obj = {};
+        headers.forEach((h, i) => obj[h] = row[i] == null ? '' : row[i]);
+        return obj;
+      }).filter(obj => Object.values(obj).some(v => String(v || '').trim() !== ''));
+    }
+
+    function formatAreaM2(value) {
+      const n = Number(value) || 0;
+      return n.toLocaleString('en-US', { maximumFractionDigits: 0 }) + ' m²';
+    }
+
+    function buildClubAreaMap(records) {
+      const map = {};
+      const validSet = new Set();
+      records.forEach(r => {
+        const club = String(readField(r, ['Club']) || '').trim();
+        if (!club || club.toLowerCase() === 'club') return;
+
+        // LOC.csv is now the master club list. Exclude rows with No. = 0
+        // and exclude clubs with no valid area.
+        const noValue = safeNum(readField(r, ['No.', 'No', 'LIST OF CLUBS']));
+        if (!noValue || noValue === 0) return;
+
+        const totalSqm = safeNum(readField(r, ['Total Sqm', 'Total SQM', 'Total sqm']));
+        const fitnessSqm = safeNum(readField(r, ['Fitness']));
+        const area = totalSqm || fitnessSqm;
+        if (area > 0 && !map[club]) {
+          map[club] = area;
+          validSet.add(club);
+        }
+      });
+      VALID_CLUB_SET = validSet;
+      return map;
+    }
+
+    function getValidDailyClubs() {
+      const dailyClubs = Array.from(new Set(
+        RAW_DAILY_RECORDS.map(r => String(r.Club || r.club || '').trim()).filter(Boolean)
+      ));
+      const validClubs = Object.keys(CLUB_AREA_MAP);
+      if (!validClubs.length) return dailyClubs;
+      return dailyClubs.filter(club => VALID_CLUB_SET.has(club));
+    }
+
+    function filterRecordsByValidLoc(records) {
+      if (!VALID_CLUB_SET || VALID_CLUB_SET.size === 0) return records;
+      return records.filter(r => VALID_CLUB_SET.has(String(r.Club || r.club || '').trim()));
+    }
+
+    function getCurrentClubAreaM2() {
+      if (CURRENT_CLUB !== 'ALL') return CLUB_AREA_MAP[CURRENT_CLUB] || DEFAULT_CLUB_AREA_M2;
+      const clubs = RAW_DAILY_RECORDS.length ? getValidDailyClubs() : Object.keys(CLUB_AREA_MAP);
+      const total = clubs.reduce((sum, club) => sum + (CLUB_AREA_MAP[club] || 0), 0);
+      return total || DEFAULT_CLUB_AREA_M2;
+    }
+
+    function updateClubAreaLabels() {
+      const area = getCurrentClubAreaM2();
+      const areaText = formatAreaM2(area);
+      const compactText = area >= 10000 ? `${Math.round(area / 1000)}K m²` : areaText;
+      const sidebar = document.getElementById('club-area-sidebar');
+      if (sidebar) sidebar.textContent = areaText;
+      const mobile = document.getElementById('club-area-mobile');
+      if (mobile) mobile.textContent = `${areaText} • Workout Club`;
+      const sqmTitle = document.getElementById('card-sqm-title');
+      if (sqmTitle) sqmTitle.textContent = `Doanh thu / m² (${compactText})`;
+    }
+
+    async function loadLocCsv() {
+      try {
+        const res = await fetch(EXTERNAL_LOC_CSV_URL, { cache: 'no-store' });
+        if (!res.ok) {
+          console.warn(`Cannot load ${EXTERNAL_LOC_CSV_URL}. Using default club area.`, res.status);
+          return false;
+        }
+        const text = await res.text();
+        RAW_LOC_RECORDS = csvToObjectsAutoHeader(text, ['Club', 'Total Sqm']);
+        CLUB_AREA_MAP = buildClubAreaMap(RAW_LOC_RECORDS);
+        updateClubAreaLabels();
+        console.log(`Loaded ${Object.keys(CLUB_AREA_MAP).length} valid club areas from ${EXTERNAL_LOC_CSV_URL}. Clubs with No.=0 or invalid area are excluded.`);
+        return Object.keys(CLUB_AREA_MAP).length > 0;
+      } catch (error) {
+        console.warn('Failed to load LOC.csv. Using default club area.', error);
+        return false;
+      }
+    }
+
+
+    function buildClubTargetMapFromMatrix(text) {
+      const matrix = parseCsvText(text);
+      const map = {};
+      if (!matrix.length) return map;
+
+      // target.csv is exported from Excel with title rows before the real table.
+      // The useful table uses fixed columns after the row containing "No." and "Club".
+      const headerRowIndex = matrix.findIndex(row =>
+        String(row[0] || '').trim().toLowerCase() === 'no.' &&
+        String(row[1] || '').trim().toLowerCase() === 'club'
+      );
+      if (headerRowIndex < 0) return map;
+
+      matrix.slice(headerRowIndex + 2).forEach(row => {
+        const club = String(row[1] || '').trim();
+        if (!club) return;
+        const totalRevenue = safeNum(row[17]);
+        if (!totalRevenue) return;
+        map[club] = {
+          "NMS": safeNum(row[18]),
+          "PT": safeNum(row[19]),
+          "Y&I": safeNum(row[20]),
+          "Hypoxi": safeNum(row[21]),
+          "Supplement": safeNum(row[22]),
+          "Califresh": safeNum(row[23]),
+          "Retail": safeNum(row[24]),
+          "Califresh & Retail": safeNum(row[25]),
+          "Total Revenue": totalRevenue,
+          "Staffing Cost": -Math.abs(safeNum(row[14])),
+          "Fixed Cost": -Math.abs(safeNum(row[15])),
+          "TOTAL COST": -Math.abs(safeNum(row[16])),
+          "PTSS": safeNum(row[28]),
+          "PT New": safeNum(row[29]),
+          "NMU": safeNum(row[30]),
+          "Sales App": safeNum(row[31]),
+          "SPO": safeNum(row[32])
+        };
+      });
+      return map;
+    }
+
+    function sumTargetRows(rows) {
+      const out = {};
+      rows.forEach(t => {
+        Object.keys(t || {}).forEach(k => {
+          out[k] = (out[k] || 0) + (Number(t[k]) || 0);
+        });
+      });
+      return out;
+    }
+
+    function applyTargetForCurrentClub() {
+      if (!CLUB_TARGET_MAP || !Object.keys(CLUB_TARGET_MAP).length) return;
+
+      let target;
+      if (CURRENT_CLUB === 'ALL') {
+        // Sum only clubs that pass LOC.csv master list, so All Clubs actual and target use the same scope.
+        const scopedClubs = RAW_DAILY_RECORDS.length
+          ? getValidDailyClubs()
+          : Object.keys(CLUB_TARGET_MAP).filter(club => !VALID_CLUB_SET.size || VALID_CLUB_SET.has(club));
+        const targetRows = scopedClubs.map(club => CLUB_TARGET_MAP[club]).filter(Boolean);
+        target = sumTargetRows(targetRows.length ? targetRows : Object.entries(CLUB_TARGET_MAP).filter(([club]) => !VALID_CLUB_SET.size || VALID_CLUB_SET.has(club)).map(([, value]) => value));
+      } else {
+        target = CLUB_TARGET_MAP[CURRENT_CLUB];
+      }
+      if (!target) return;
+
+      HVP_DATA.targets["NMS"] = target["NMS"] || 0;
+      HVP_DATA.targets["PT"] = target["PT"] || 0;
+      HVP_DATA.targets["Y&I"] = target["Y&I"] || 0;
+      HVP_DATA.targets["Supplement"] = target["Supplement"] || 0;
+      HVP_DATA.targets["Retail"] = target["Retail"] || 0;
+      HVP_DATA.targets["Califresh"] = target["Califresh"] || 0;
+      HVP_DATA.targets["Hypoxi"] = target["Hypoxi"] || 0;
+      HVP_DATA.targets["VAS"] = 0;
+      HVP_DATA.targets["Total Revenue"] = target["Total Revenue"] || 0;
+      HVP_DATA.targets["TOTAL COST"] = target["TOTAL COST"] || 0;
+      HVP_DATA.targets["Total Fixed cost"] = target["Fixed Cost"] || 0;
+      HVP_DATA.targets["Staffing Cost"] = target["Staffing Cost"] || 0;
+      HVP_DATA.targets["Staffing - Retail"] = HVP_DATA.targets["Staffing - Retail"] || 0;
+    }
+
+    async function loadTargetCsv() {
+      try {
+        const res = await fetch(EXTERNAL_TARGET_CSV_URL, { cache: 'no-store' });
+        if (!res.ok) {
+          console.warn(`Cannot load ${EXTERNAL_TARGET_CSV_URL}. Using fallback static targets.`, res.status);
+          return false;
+        }
+        const text = await res.text();
+        RAW_TARGET_RECORDS = parseCsvText(text);
+        CLUB_TARGET_MAP = buildClubTargetMapFromMatrix(text);
+        applyTargetForCurrentClub();
+        console.log(`Loaded ${Object.keys(CLUB_TARGET_MAP).length} club targets from ${EXTERNAL_TARGET_CSV_URL}.`);
+        return Object.keys(CLUB_TARGET_MAP).length > 0;
+      } catch (error) {
+        console.warn('Failed to load target.csv. Using fallback static targets.', error);
+        return false;
+      }
+    }
+
+
+    function normalizeCostLineName(value) {
+      return String(value || '')
+        .replace(/^\uFEFF/, '')
+        .trim()
+        .toLowerCase()
+        .replace(/&/g, 'and')
+        .replace(/\s+/g, ' ');
+    }
+
+    function buildFixedCostTargetMapFromRecords(records) {
+      const map = {};
+      records.forEach(r => {
+        const club = String(readField(r, ['Club']) || '').trim();
+        if (!club || club.toLowerCase() === 'club') return;
+        if (VALID_CLUB_SET && VALID_CLUB_SET.size && !VALID_CLUB_SET.has(club)) return;
+
+        const enLine = String(readField(r, ['Club PnL', 'Club PnL_1', 'Club PnL.1', 'Cost Item', 'Cost item']) || '').trim();
+        const viLine = String(readField(r, ['', 'Club PnL']) || '').trim();
+        const lineKeyRaw = enLine || viLine;
+        const lineKey = normalizeCostLineName(lineKeyRaw);
+        const amount = -Math.abs(safeNum(readField(r, ['Cost target', 'Target', 'Budget'])));
+        if (!amount) return;
+
+        let key = '';
+        if (lineKey.includes('repair')) key = 'Repair & maintenance';
+        else if (lineKey.includes('supplies')) key = 'Supplies';
+        else if (lineKey.includes('utilities')) key = 'Utilities';
+        else if (lineKey.includes('other oh')) key = 'Other OH';
+        else if (lineKey.includes('laundry')) key = 'Laundry Service';
+        else if (lineKey.includes('security')) key = 'Security';
+        else if (lineKey.includes('cleaning')) key = 'Cleaning_Center';
+        else if (lineKey.includes('others')) key = 'Other OH Others';
+        if (!key) return;
+
+        if (!map[club]) map[club] = {};
+        map[club][key] = (map[club][key] || 0) + amount;
+      });
+
+      Object.keys(map).forEach(club => {
+        map[club]['Total Fixed cost'] =
+          (map[club]['Repair & maintenance'] || 0) +
+          (map[club]['Supplies'] || 0) +
+          (map[club]['Utilities'] || 0) +
+          (map[club]['Other OH'] || 0) +
+          (map[club]['Laundry Service'] || 0) +
+          (map[club]['Security'] || 0) +
+          (map[club]['Cleaning_Center'] || 0) +
+          (map[club]['Other OH Others'] || 0);
+      });
+      return map;
+    }
+
+    function sumFixedCostTargets(rows) {
+      const out = {};
+      rows.forEach(t => {
+        Object.keys(t || {}).forEach(k => { out[k] = (out[k] || 0) + (Number(t[k]) || 0); });
+      });
+      return out;
+    }
+
+    function getCurrentFixedCostTarget() {
+      if (!FIXED_COST_TARGET_MAP || !Object.keys(FIXED_COST_TARGET_MAP).length) return null;
+      if (CURRENT_CLUB === 'ALL') {
+        const clubs = RAW_DAILY_RECORDS.length
+          ? getValidDailyClubs()
+          : Object.keys(FIXED_COST_TARGET_MAP).filter(club => !VALID_CLUB_SET.size || VALID_CLUB_SET.has(club));
+        return sumFixedCostTargets(clubs.map(club => FIXED_COST_TARGET_MAP[club]).filter(Boolean));
+      }
+      return FIXED_COST_TARGET_MAP[CURRENT_CLUB] || null;
+    }
+
+    function getCurrentFixedCostAmount(key) {
+      const fixedMap = getCurrentFixedCostTarget();
+      if (!fixedMap) return null;
+      return Math.abs(Number(fixedMap[key] || 0));
+    }
+
+    function applyFixedCostTargetForCurrentClub() {
+      const target = getCurrentFixedCostTarget();
+      if (!target) return;
+      HVP_DATA.targets['Repair & maintenance'] = target['Repair & maintenance'] || 0;
+      HVP_DATA.targets['Supplies'] = target['Supplies'] || 0;
+      HVP_DATA.targets['Utilities'] = target['Utilities'] || 0;
+      HVP_DATA.targets['Other OH'] = target['Other OH'] || 0;
+      HVP_DATA.targets['Laundry Service'] = target['Laundry Service'] || 0;
+      HVP_DATA.targets['Security'] = target['Security'] || 0;
+      HVP_DATA.targets['Cleaning_Center'] = target['Cleaning_Center'] || 0;
+      HVP_DATA.targets['Other OH Others'] = target['Other OH Others'] || 0;
+      HVP_DATA.targets['Total Fixed cost'] = target['Total Fixed cost'] || 0;
+    }
+
+    async function loadFixedCostCsv() {
+      try {
+        const res = await fetch(EXTERNAL_FIXED_COST_CSV_URL, { cache: 'no-store' });
+        if (!res.ok) {
+          console.warn(`Cannot load ${EXTERNAL_FIXED_COST_CSV_URL}. Using target.csv fixed-cost budget only.`, res.status);
+          return false;
+        }
+        const text = await res.text();
+        RAW_FIXED_COST_RECORDS = csvToObjects(text);
+        FIXED_COST_TARGET_MAP = buildFixedCostTargetMapFromRecords(RAW_FIXED_COST_RECORDS);
+        applyFixedCostTargetForCurrentClub();
+        console.log(`Loaded fixed cost target for ${Object.keys(FIXED_COST_TARGET_MAP).length} club(s) from ${EXTERNAL_FIXED_COST_CSV_URL}.`);
+        return Object.keys(FIXED_COST_TARGET_MAP).length > 0;
+      } catch (error) {
+        console.warn('Failed to load fixed-cost.csv. Using target.csv fixed-cost budget only.', error);
+        return false;
+      }
+    }
+
+
+    function parseMonthTokenToMonthEnd(token) {
+      const raw = String(token || '').trim();
+      if (!raw) return '';
+      const monthMap = {
+        jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2, apr: 3, april: 3,
+        may: 4, jun: 5, june: 5, jul: 6, july: 6, aug: 7, august: 7, sep: 8, sept: 8, september: 8,
+        oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11
+      };
+
+      let m = raw.match(/(\d{1,2})[-\/\s]([A-Za-z]{3,9})[-\/\s]?(\d{2,4})/);
+      if (m) {
+        const mon = monthMap[m[2].toLowerCase()];
+        const year = Number(m[3].length === 2 ? '20' + m[3] : m[3]);
+        if (mon !== undefined && year) return new Date(Date.UTC(year, mon + 1, 0)).toISOString().slice(0, 10);
+      }
+
+      m = raw.match(/([A-Za-z]{3,9})'?[-\/\s]?(\d{2,4})/);
+      if (m) {
+        const mon = monthMap[m[1].toLowerCase()];
+        const year = Number(m[2].length === 2 ? '20' + m[2] : m[2]);
+        if (mon !== undefined && year) return new Date(Date.UTC(year, mon + 1, 0)).toISOString().slice(0, 10);
+      }
+
+      return toMonthEnd(raw);
+    }
+
+    function buildStaffingCostMapFromMatrix(text) {
+      const matrix = parseCsvText(text);
+      const map = {};
+      if (!matrix.length) return map;
+
+      // staffing-cost.csv contains two tables:
+      // 1) Official club summary table on the left with "Total club staffing costs".
+      // 2) Normalized department table on the right.
+      // For Finance accuracy, we use the LEFT summary table as source of truth for cost.
+      // The normalized table can have small allocation differences (e.g. HVP Califresh), so it is not used to calculate total.
+      let headerRowIndex = -1;
+      let clubIdx = -1;
+      const headerMap = {};
+
+      for (let i = 0; i < matrix.length; i++) {
+        const row = matrix[i].map(v => String(v || '').trim());
+        const lower = row.map(v => v.toLowerCase());
+        const c = lower.findIndex(v => v === 'club');
+        const total = lower.findIndex(v => v === 'total club staffing costs');
+        if (c >= 0 && total >= 0) {
+          headerRowIndex = i;
+          clubIdx = c;
+          lower.forEach((h, idx) => { if (h) headerMap[h] = idx; });
+          break;
+        }
+      }
+      if (headerRowIndex < 0) return map;
+
+      let monthEnd = '';
+      for (let r = 0; r <= headerRowIndex; r++) {
+        for (let c = 0; c < matrix[r].length; c++) {
+          const candidate = parseMonthTokenToMonthEnd(matrix[r][c]);
+          if (candidate && /^\d{4}-\d{2}-\d{2}$/.test(candidate)) monthEnd = candidate;
+        }
+      }
+      if (!monthEnd) monthEnd = HVP_DATA.months[HVP_DATA.months.length - 1];
+
+      const col = (...names) => {
+        for (const name of names) {
+          const key = String(name).toLowerCase();
+          if (headerMap[key] != null) return headerMap[key];
+        }
+        return -1;
+      };
+
+      // The Finance export has two sections on the same row:
+      // 1) Headcount columns: Sales, PT, Hypoxi, GX, Yoga, MS, Total HC
+      // 2) Cost columns: SALES, PT, HYPOXI, GX, Yoga, MS, CMO, CALIFRESH, Retail, Total club staffing costs
+      // Because names like Sales/PT appear twice, we locate the COST section from
+      // the official "Total club staffing costs" column and map backwards/forwards.
+      const totalCostIdx = col('total club staffing costs');
+      const costCols = {
+        SALES: totalCostIdx - 9,      // NMS in dashboard = Sales in Finance staffing file
+        PT: totalCostIdx - 8,
+        HYPOXI: totalCostIdx - 7,
+        GX: totalCostIdx - 6,
+        YOGA: totalCostIdx - 5,
+        MS: totalCostIdx - 4,
+        CMO: totalCostIdx - 3,
+        CALIFRESH: totalCostIdx - 2, // CAA in dashboard = Califresh in Finance staffing file
+        RETAIL: totalCostIdx - 1
+      };
+      const dsIdx = totalCostIdx + 2;
+      const mrIdx = totalCostIdx + 3;
+
+      // Headcount columns are positioned before Total HC in the summary table.
+      const totalHCIdx = col('total hc');
+      const ptHCIdx = clubIdx + 2; // Club, Sales HC, PT HC, ...
+
+      map[monthEnd] = {};
+      matrix.slice(headerRowIndex + 1).forEach(row => {
+        const club = String(row[clubIdx] || '').trim();
+        if (!club) return;
+        if (VALID_CLUB_SET && VALID_CLUB_SET.size && !VALID_CLUB_SET.has(club)) return;
+
+        const officialTotal = safeNum(row[totalCostIdx]);
+        const totalHC = safeNum(row[totalHCIdx]);
+        const ptHC = safeNum(row[ptHCIdx]);
+        if (!officialTotal && !totalHC && !ptHC) return;
+
+        const departments = {};
+        Object.entries(costCols).forEach(([dep, idx]) => {
+          if (idx < 0) return;
+          const cost = safeNum(row[idx]);
+          if (!cost) return;
+          departments[dep] = { hc: 0, cost };
+        });
+
+        // DS/MR are captured separately for visibility, but they are NOT included in Total club staffing costs.
+        const regionalCosts = {};
+        if (dsIdx >= 0 && safeNum(row[dsIdx])) {
+          regionalCosts.DS = { hc: 0, cost: safeNum(row[dsIdx]) };
+          departments.DS = regionalCosts.DS;
+        }
+        if (mrIdx >= 0 && safeNum(row[mrIdx])) {
+          regionalCosts.MR = { hc: 0, cost: safeNum(row[mrIdx]) };
+          departments.MR = regionalCosts.MR;
+        }
+
+        map[monthEnd][club] = {
+          departments,
+          regionalCosts,
+          totalCost: officialTotal, // official source of truth
+          totalHC,
+          ptHC
+        };
+      });
+
+      return map;
+    }
+
+    function getStaffingScopeForMonth(monthEnd) {
+      const monthMap = STAFFING_COST_MAP[monthEnd];
+      if (!monthMap) return null;
+
+      if (CURRENT_CLUB === 'ALL') {
+        const out = { departments: {}, totalCost: 0, totalHC: 0, ptHC: 0 };
+        Object.entries(monthMap).forEach(([club, value]) => {
+          if (VALID_CLUB_SET && VALID_CLUB_SET.size && !VALID_CLUB_SET.has(club)) return;
+          out.totalCost += value.totalCost || 0;
+          out.totalHC += value.totalHC || 0;
+          out.ptHC += value.ptHC || 0;
+          Object.entries(value.departments || {}).forEach(([dep, depVal]) => {
+            if (!out.departments[dep]) out.departments[dep] = { hc: 0, cost: 0 };
+            out.departments[dep].hc += depVal.hc || 0;
+            out.departments[dep].cost += depVal.cost || 0;
+          });
+        });
+        return out;
+      }
+
+      return monthMap[CURRENT_CLUB] || null;
+    }
+
+    function getLatestStaffingScope() {
+      const months = Object.keys(STAFFING_COST_MAP || {}).sort();
+      if (!months.length) return null;
+      return getStaffingScopeForMonth(months[months.length - 1]);
+    }
+
+    function applyStaffingCostForCurrentClub() {
+      if (!STAFFING_COST_MAP || !Object.keys(STAFFING_COST_MAP).length || !HVP_DATA.months.length) return;
+
+      const deptToRow = {
+        'SALES': 'Chi phí lương - NMS (Staffing - NMS)',
+        'PT': 'Chi phí lương - PT (Staffing - PT)',
+        'HYPOXI': 'Chi phí lương - Hypoxi (Staffing - Hypoxi)',
+        'CALIFRESH': 'Chi phí lương - Califresh (Staffing - CAA)',
+        'RETAIL': 'Chi phí lương - Retail (Staffing - Retail)',
+        'YOGA': 'Chi phí lương - Yoga (Staffing - Yoga)',
+        'GX': 'Chi phí lương - GX (Staffing - GX)',
+        'CMO': 'Chi phí lương - CMO (Staffing - CMO)',
+        'MS': 'Chi phí lương - MS (Staffing - MS)',
+        'MR': 'Chi phí lương - MR (Staffing - MR)',
+        'DS': 'Chi phí lương - DS (Staffing - DS)'
+      };
+
+      const totalStaffingValues = [];
+      const ptHeadcountValues = [];
+      const rowValues = {};
+      Object.values(deptToRow).forEach(rowName => rowValues[rowName] = HVP_DATA.months.map(() => 0));
+
+      HVP_DATA.months.forEach((monthEnd, idx) => {
+        // staffing-cost.csv may be a monthly snapshot (e.g. Apr'26).
+        // If the selected month is not available in the file, reuse the latest available
+        // staffing snapshot so the club filter still shows Finance staffing cost instead of fallback dummy data.
+        const staffing = getStaffingScopeForMonth(monthEnd) || getLatestStaffingScope();
+        if (!staffing) {
+          totalStaffingValues[idx] = 0;
+          ptHeadcountValues[idx] = null;
+          return;
+        }
+
+        totalStaffingValues[idx] = -Math.abs(staffing.totalCost || 0);
+        ptHeadcountValues[idx] = staffing.ptHC || null;
+
+        Object.entries(deptToRow).forEach(([dep, rowName]) => {
+          const cost = staffing.departments?.[dep]?.cost || 0;
+          rowValues[rowName][idx] = -Math.abs(cost);
+        });
+      });
+
+      Object.entries(rowValues).forEach(([rowName, values]) => upsertHVPRow(rowName, values, 'Expense'));
+      upsertHVPRow('Chi phí lương (Total Staffing cost)', totalStaffingValues, 'Expense');
+
+      HVP_DATA.headcount.months = HVP_DATA.months.slice();
+      HVP_DATA.headcount.pt = ptHeadcountValues.map(v => v == null ? 0 : v);
+
+      HVP_DATA.months.forEach((monthEnd, idx) => {
+        if (!OPERATING_DATA[monthEnd]) return;
+        const staffing = getStaffingScopeForMonth(monthEnd);
+        if (!staffing) return;
+        const ptHC = staffing.ptHC || null;
+        if (ptHC) {
+          OPERATING_DATA[monthEnd].pt.headcount = ptHC;
+          const ssServe = OPERATING_DATA[monthEnd].pt.ssServe || 0;
+          const ptRev = HVP_DATA.rows.find(r => r.name === 'Doanh thu HLV cá nhân (PT)')?.values?.[idx] || 0;
+          OPERATING_DATA[monthEnd].pt.burnPerHC = ssServe ? ssServe / ptHC : null;
+          OPERATING_DATA[monthEnd].pt.ptPerHC = ptRev ? ptRev / ptHC : null;
+          const coverage = MONTH_DAY_COVERAGE[monthEnd];
+          const days = coverage?.daysElapsed || getDaysInMonthFromMonthEnd(monthEnd);
+          OPERATING_DATA[monthEnd].pt.burnPerHCDay = (ssServe && days) ? ssServe / ptHC / days : null;
+        }
+      });
+
+      const totalCostRow = HVP_DATA.rows.find(r => r.name === 'TỔNG CHI PHÍ (TOTAL COST)');
+      const variableRow = HVP_DATA.rows.find(r => r.name === 'Chi phí biến đổi theo doanh thu (Total Variable Cost)');
+      const fixedRow = HVP_DATA.rows.find(r => r.name === 'Chi phí cố định (Total Fixed cost)');
+      const rentalRow = HVP_DATA.rows.find(r => r.name === 'Chi phí cố định - Thuê (Total Fixed cost-rental)');
+      const revenueRow = HVP_DATA.rows.find(r => r.name === 'TỔNG DOANH THU (Total Revenue)');
+      const ebitdaRow = HVP_DATA.rows.find(r => r.name === 'LỢI NHUẬN EBITDA');
+
+      if (totalCostRow) {
+        HVP_DATA.months.forEach((monthEnd, idx) => {
+          if (!getStaffingScopeForMonth(monthEnd)) return;
+          const variable = variableRow?.values?.[idx] || 0;
+          const staffing = totalStaffingValues[idx] || 0;
+          const fixed = fixedRow?.values?.[idx] || 0;
+          const rental = rentalRow?.values?.[idx] || 0;
+          totalCostRow.values[idx] = variable + staffing + fixed + rental;
+          if (ebitdaRow && revenueRow) ebitdaRow.values[idx] = (revenueRow.values[idx] || 0) + totalCostRow.values[idx];
+        });
+      }
+    }
+
+    async function loadStaffingCostCsv() {
+      try {
+        const res = await fetch(EXTERNAL_STAFFING_COST_CSV_URL, { cache: 'no-store' });
+        if (!res.ok) {
+          console.warn(`Cannot load ${EXTERNAL_STAFFING_COST_CSV_URL}. Using existing staffing data.`, res.status);
+          return false;
+        }
+        const text = await res.text();
+        RAW_STAFFING_COST_RECORDS = parseCsvText(text);
+        STAFFING_COST_MAP = buildStaffingCostMapFromMatrix(text);
+        applyStaffingCostForCurrentClub();
+        console.log(`Loaded staffing cost for ${Object.keys(STAFFING_COST_MAP).length} month(s) from ${EXTERNAL_STAFFING_COST_CSV_URL}.`);
+        return Object.keys(STAFFING_COST_MAP).length > 0;
+      } catch (error) {
+        console.warn('Failed to load staffing-cost.csv. Using existing staffing data.', error);
+        return false;
+      }
     }
 
     function toMonthEnd(dateText) {
@@ -1128,11 +1738,98 @@
       return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
     }
 
+
+    function parseDateValue(value) {
+      if (!value) return null;
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    function parseYmdLocal(value) {
+      if (!value) return null;
+      const txt = String(value).trim().slice(0, 10);
+      const m = txt.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+
+    function monthEndKeyFromLocalDate(d) {
+      if (!d) return '';
+      const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      const yyyy = last.getFullYear();
+      const mm = String(last.getMonth() + 1).padStart(2, '0');
+      const dd = String(last.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function getCurrentMtdInfoForMonth(monthEnd) {
+      const daysInMonth = getDaysInMonthFromMonthEnd(monthEnd);
+      const today = new Date();
+      const currentMonthEnd = monthEndKeyFromLocalDate(today);
+      if (monthEnd === currentMonthEnd) {
+        return {
+          daysElapsed: Math.min(Math.max(today.getDate() - 1, 0), daysInMonth),
+          daysInMonth
+        };
+      }
+      const selected = parseYmdLocal(monthEnd);
+      const selectedKey = monthEndKeyFromLocalDate(selected);
+      if (selectedKey && selectedKey > currentMonthEnd) return { daysElapsed: 0, daysInMonth };
+      return { daysElapsed: daysInMonth, daysInMonth };
+    }
+
+    function isFutureDateBeyondMtd(rowDate, monthEnd) {
+      if (!rowDate) return false;
+      const today = new Date();
+      const currentMonthEnd = monthEndKeyFromLocalDate(today);
+      if (monthEnd !== currentMonthEnd) return false;
+      const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+      return rowDate.getTime() > cutoff.getTime();
+    }
+
+    function getDaysInMonthFromMonthEnd(monthEnd) {
+      const d = parseDateValue(monthEnd);
+      if (!d) return 30;
+      return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    }
+
+    function getTargetRatioForMonth(monthEnd) {
+      const coverage = MONTH_DAY_COVERAGE[monthEnd];
+      if (coverage && coverage.daysInMonth > 0) return coverage.ratio;
+      return 1;
+    }
+
+    function getTargetToDate(targetKey, idx, isYTD) {
+      const baseTarget = HVP_DATA.targets[targetKey] || 0;
+      if (isYTD) {
+        return HVP_DATA.months.reduce((sum, monthEnd) => sum + baseTarget * getTargetRatioForMonth(monthEnd), 0);
+      }
+      const monthEnd = HVP_DATA.months[idx];
+      return baseTarget * getTargetRatioForMonth(monthEnd);
+    }
+
+    function getTargetLabel(idx, isYTD) {
+      if (isYTD) return 'Target-to-date';
+      const monthEnd = HVP_DATA.months[idx];
+      const coverage = MONTH_DAY_COVERAGE[monthEnd];
+      if (!coverage) return 'Target-to-date';
+      return `MTD Target (${coverage.daysElapsed}/${coverage.daysInMonth} days)`;
+    }
+
     function safeNum(value) {
       if (value === undefined || value === null || value === '') return 0;
-      const cleaned = String(value).replace(/[$,%\s]/g, '').replace(/,/g, '');
+      let raw = String(value).trim();
+      if (!raw || raw === '-' || raw === '–') return 0;
+      // Finance CSV files often export negative values as parentheses, e.g. (2,462).
+      // The previous parser returned 0 for those cells, so fixed-cost.csv was ignored
+      // and the dashboard fell back to old hardcoded HVP values.
+      const isParenthesesNegative = /^\(.*\)$/.test(raw);
+      raw = raw.replace(/[()]/g, '');
+      const cleaned = raw.replace(/[$,%\s]/g, '').replace(/,/g, '');
       const n = Number(cleaned);
-      return Number.isFinite(n) ? n : 0;
+      if (!Number.isFinite(n)) return 0;
+      return isParenthesesNegative ? -Math.abs(n) : n;
     }
 
     function readField(row, names) {
@@ -1185,18 +1882,75 @@
 
     function rebuildClubSelect(records) {
       const clubSelect = document.getElementById('club-select');
+      const clubInput = document.getElementById('club-search-input');
+      const clubDatalist = document.getElementById('club-datalist');
       if (!clubSelect) return;
-      const clubs = Array.from(new Set(records.map(r => String(r.Club || r.club || '').trim()).filter(Boolean))).sort();
+
+      // Dropdown/search scope = clubs that appear in daily.csv AND are active/valid in LOC.csv.
+      // LOC rows with No. = 0 or missing from LOC are excluded.
+      const dailyClubs = Array.from(new Set(records.map(r => String(r.Club || r.club || '').trim()).filter(Boolean)));
+      const clubs = (VALID_CLUB_SET && VALID_CLUB_SET.size > 0
+        ? dailyClubs.filter(club => VALID_CLUB_SET.has(club))
+        : dailyClubs
+      ).sort();
+
       const current = localStorage.getItem('hvp_selected_club') || clubSelect.value || 'ALL';
       clubSelect.innerHTML = '<option value="ALL">All Clubs</option>';
+      if (clubDatalist) clubDatalist.innerHTML = '<option value="All Clubs"></option>';
+
       clubs.forEach(club => {
         const option = document.createElement('option');
         option.value = club;
         option.textContent = club;
         clubSelect.appendChild(option);
+
+        if (clubDatalist) {
+          const dataOption = document.createElement('option');
+          dataOption.value = club;
+          clubDatalist.appendChild(dataOption);
+        }
       });
+
       clubSelect.value = clubs.includes(current) ? current : 'ALL';
       CURRENT_CLUB = clubSelect.value;
+      if (clubInput) clubInput.value = CURRENT_CLUB === 'ALL' ? 'All Clubs' : CURRENT_CLUB;
+    }
+
+    function getValidClubOptions() {
+      const clubSelect = document.getElementById('club-select');
+      if (!clubSelect) return [];
+      return Array.from(clubSelect.options).map(option => option.value);
+    }
+
+    function normalizeClubInput(value) {
+      const raw = String(value || '').trim();
+      if (!raw || raw.toLowerCase() === 'all' || raw.toLowerCase() === 'all clubs') return 'ALL';
+      const validOptions = getValidClubOptions();
+      return validOptions.find(club => club.toLowerCase() === raw.toLowerCase()) || null;
+    }
+
+    function applyClubSelection(nextClub) {
+      const clubSelect = document.getElementById('club-select');
+      const clubInput = document.getElementById('club-search-input');
+      const resolvedClub = nextClub && getValidClubOptions().includes(nextClub) ? nextClub : 'ALL';
+
+      CURRENT_CLUB = resolvedClub;
+      if (clubSelect) clubSelect.value = CURRENT_CLUB;
+      if (clubInput) clubInput.value = CURRENT_CLUB === 'ALL' ? 'All Clubs' : CURRENT_CLUB;
+      localStorage.setItem('hvp_selected_club', CURRENT_CLUB);
+
+      const previousPeriod = document.getElementById('month-select')?.value || 'YTD';
+      if (RAW_DAILY_RECORDS.length) {
+        rebuildDashboardFromCsvRecords();
+      } else {
+        applyTargetForCurrentClub();
+        applyFixedCostTargetForCurrentClub();
+        applyStaffingCostForCurrentClub();
+      }
+      const monthSelect = document.getElementById('month-select');
+      const selectedPeriod = monthSelect?.value || previousPeriod || 'YTD';
+      updateDashboard(selectedPeriod);
+      setLanguage(currentLang, false);
     }
 
     function setClubLabels() {
@@ -1204,6 +1958,7 @@
       document.querySelectorAll('aside h1, #mobile-sidebar h1').forEach(el => { el.textContent = label; });
       const title = document.querySelector('header h2');
       if (title) title.textContent = `${label} Financial & Operating Dashboard`;
+      updateClubAreaLabels();
     }
 
     function ensureRowsAlignedToMonths(months) {
@@ -1221,9 +1976,10 @@
     }
 
     function rebuildDashboardFromCsvRecords() {
+      const scopedDailyRecords = filterRecordsByValidLoc(RAW_DAILY_RECORDS);
       const source = CURRENT_CLUB === 'ALL'
-        ? RAW_DAILY_RECORDS
-        : RAW_DAILY_RECORDS.filter(r => String(r.Club || r.club || '').trim() === CURRENT_CLUB);
+        ? scopedDailyRecords
+        : scopedDailyRecords.filter(r => String(r.Club || r.club || '').trim() === CURRENT_CLUB);
       if (!source.length) return false;
 
       const monthSet = new Set();
@@ -1238,7 +1994,7 @@
           ptssPaid: 0, ptssTrial: 0, ptssFoc: 0, newPtClients: 0, uniqueBurn: 0,
           sales: 0, media: 0, pns: 0, tm: 0, ol: 0, lwt: 0, referral: 0,
           nmu: 0, nmsPifAmt: 0, nmsPif: 0, nmsPifMonth: 0, ptPifAmt: 0, ptPif: 0,
-          ptSSold: 0, ptssBurn: 0, guestMkt: 0, guestClub: 0
+          ptSSold: 0, ptssBurn: 0, guestMkt: 0, guestClub: 0, dateSet: new Set()
         };
       });
 
@@ -1246,6 +2002,14 @@
         const m = toMonthEnd(readField(r, ['EOM', 'eom', 'Date', 'date']));
         if (!byMonth[m]) return;
         const b = byMonth[m];
+        const rowDay = parseYmdLocal(readField(r, ['Day.1', 'Day', 'Date', 'date']));
+        if (isFutureDateBeyondMtd(rowDay, m)) return;
+        if (rowDay) {
+          const yyyy = rowDay.getFullYear();
+          const mm = String(rowDay.getMonth() + 1).padStart(2, '0');
+          const dd = String(rowDay.getDate()).padStart(2, '0');
+          b.dateSet.add(`${yyyy}-${mm}-${dd}`);
+        }
         b.nms += safeNum(readField(r, ['NMS']));
         b.pt += safeNum(readField(r, ['PT']));
         b.yi += safeNum(readField(r, ['YI', 'Y&I']));
@@ -1281,6 +2045,22 @@
       });
 
       HVP_DATA.months = months;
+      MONTH_DAY_COVERAGE = {};
+      months.forEach(m => {
+        const mtdInfo = getCurrentMtdInfoForMonth(m);
+        const dataDays = byMonth[m].dateSet ? byMonth[m].dateSet.size : 0;
+        const daysElapsed = m === monthEndKeyFromLocalDate(new Date())
+          ? mtdInfo.daysElapsed
+          : (dataDays || mtdInfo.daysElapsed);
+        const daysInMonth = mtdInfo.daysInMonth;
+        MONTH_DAY_COVERAGE[m] = {
+          daysElapsed,
+          daysInMonth,
+          ratio: Math.min(Math.max(daysElapsed / daysInMonth, 0), 1)
+        };
+      });
+      applyTargetForCurrentClub();
+      applyFixedCostTargetForCurrentClub();
       const arr = (field) => months.map(m => Math.round(byMonth[m][field] || 0));
       const totalFromComponents = (m) => byMonth[m].nms + byMonth[m].pt + byMonth[m].yi + byMonth[m].supplement + byMonth[m].retail + byMonth[m].califresh + byMonth[m].hypoxi + byMonth[m].vas;
 
@@ -1342,6 +2122,7 @@
         };
       });
 
+      applyStaffingCostForCurrentClub();
       rebuildMonthSelectFromHVPData(document.getElementById('month-select')?.value);
       setClubLabels();
       return true;
@@ -1549,6 +2330,10 @@
       "Chi phí lương - Yoga (Staffing - Yoga)": "Staffing - Yoga",
       "Chi phí lương - GX (Staffing - GX)": "Staffing - GX",
       "Chi phí lương - CMO (Staffing - CMO)": "Staffing - CMO",
+      "Chi phí lương - Retail (Staffing - Retail)": "Staffing - Retail",
+      "Chi phí lương - MS (Staffing - MS)": "Staffing - MS",
+      "Chi phí lương - MR (Staffing - MR)": "Staffing - MR",
+      "Chi phí lương - DS (Staffing - DS)": "Staffing - DS",
       "Chi phí cố định (Total Fixed cost)": "Fixed Cost",
       "Sửa chữa & bảo trì (Repair & maintenance)": "Repair & Maintenance",
       "Vật tư tiêu hao (Supplies)": "Supplies",
@@ -1696,10 +2481,13 @@
       { name: "Chi phí lương - PT (Staffing - PT)", key: "Staffing - PT" },
       { name: "Chi phí lương - Hypoxi (Staffing - Hypoxi)", key: "Staffing - Hypoxi" },
       { name: "Chi phí lương - Califresh (Staffing - CAA)", key: "Staffing - CAA" },
-      { name: "Chi phí lương - Spa (Staffing - Spa)", key: "Staffing - Spa" },
       { name: "Chi phí lương - Yoga (Staffing - Yoga)", key: "Staffing - Yoga" },
       { name: "Chi phí lương - GX (Staffing - GX)", key: "Staffing - GX" },
-      { name: "Chi phí lương - CMO (Staffing - CMO)", key: "Staffing - CMO" }
+      { name: "Chi phí lương - CMO (Staffing - CMO)", key: "Staffing - CMO" },
+      { name: "Chi phí lương - MS (Staffing - MS)", key: "Staffing - MS" },
+      { name: "Chi phí lương - MR (Staffing - MR)", key: "Staffing - MR" },
+      { name: "Chi phí lương - DS (Staffing - DS)", key: "Staffing - DS" },
+      { name: "Chi phí lương - Retail (Staffing - Retail)", key: "Staffing - Retail" }
     ];
 
     const FIXED_SHOWN_LINES = [
@@ -1723,9 +2511,8 @@
       return isYTD ? rowObj.values.reduce((a, b) => a + b, 0) : rowObj.values[idx];
     }
 
-    function getCostLineBudget(costKey, isYTD) {
-      const baseTarget = HVP_DATA.targets[costKey] || 0;
-      return isYTD ? baseTarget * HVP_DATA.months.length : baseTarget;
+    function getCostLineBudget(costKey, idx, isYTD) {
+      return getTargetToDate(costKey, idx, isYTD);
     }
 
     function sumAbsLines(lines, idx, isYTD) {
@@ -1735,12 +2522,15 @@
     function getPLCostSummary(idx, isYTD) {
       const variable = Math.abs(getCostLineValue(COST_TOTAL_LINES.variable, idx, isYTD));
       const totalStaffingPL = Math.abs(getCostLineValue(COST_TOTAL_LINES.staffing, idx, isYTD));
-      const fixed = Math.abs(getCostLineValue(COST_TOTAL_LINES.fixed, idx, isYTD));
+      const fixedCsvAmount = getCurrentFixedCostAmount('Total Fixed cost');
+      const fixed = fixedCsvAmount !== null ? fixedCsvAmount : Math.abs(getCostLineValue(COST_TOTAL_LINES.fixed, idx, isYTD));
       const rental = Math.abs(getCostLineValue(COST_TOTAL_LINES.rental, idx, isYTD));
       const total = Math.abs(getCostLineValue(COST_TOTAL_LINES.total, idx, isYTD));
 
-      // GM-view rule: only show the approved staffing lines. All non-shown staffing,
-      // rental, and any remaining hidden cost are aggregated into one single Unshown Cost row.
+      // GM-view rule: GM Shown Staffing Cost is the sum of the approved lines below:
+      // Sales/NMS + PT + Hypoxi + CAA/Califresh + Yoga + GX + CMO + MS + MR + DS + Retail.
+      // Spa is not mapped because it is not available in staffing-cost.csv.
+      // Rental and any remaining hidden cost are aggregated into Unshown Cost.
       const shownStaffing = sumAbsLines(STAFFING_SHOWN_LINES, idx, isYTD);
       const unshown = Math.max(total - variable - shownStaffing - fixed, 0);
       const rounding = total - (variable + shownStaffing + fixed + unshown);
@@ -1767,7 +2557,7 @@
       let ebitda = 0;
       let totalCost = 0, targetTotalCost = 0;
       let totalStaffing = 0, totalFixed = 0;
-      let sizeM2 = 3613.6;
+      let sizeM2 = getCurrentClubAreaM2();
 
       // Tìm vị trí của tháng trong chuỗi dữ liệu
       let mIdx = HVP_DATA.months.indexOf(selectedPeriod);
@@ -1785,8 +2575,8 @@
           // Tính tổng nhóm Fixed Cost
           if (row.name === "Chi phí cố định (Total Fixed cost)") totalFixed = sum;
         });
-        targetRev = HVP_DATA.targets["Total Revenue"] * HVP_DATA.months.length;
-        targetTotalCost = HVP_DATA.targets["TOTAL COST"] * HVP_DATA.months.length;
+        targetRev = getTargetToDate("Total Revenue", mIdx, true);
+        targetTotalCost = getTargetToDate("TOTAL COST", mIdx, true);
       } else if (mIdx !== -1) {
         // Lấy số liệu của tháng được chọn
         HVP_DATA.rows.forEach(row => {
@@ -1798,13 +2588,14 @@
           if (row.name === "Chi phí lương (Total Staffing cost)") totalStaffing = val;
           if (row.name === "Chi phí cố định (Total Fixed cost)") totalFixed = val;
         });
-        targetRev = HVP_DATA.targets["Total Revenue"];
-        targetTotalCost = HVP_DATA.targets["TOTAL COST"];
+        targetRev = getTargetToDate("Total Revenue", mIdx, false);
+        targetTotalCost = getTargetToDate("TOTAL COST", mIdx, false);
       }
 
       // 1. Cập nhật dữ liệu cho các Scorecards
       document.getElementById("card-rev-value").innerText = formatUSD(totalRev);
       document.getElementById("card-rev-target").innerText = formatUSD(targetRev);
+      document.getElementById("card-rev-target").title = getTargetLabel(mIdx, isYTD);
       
       let revPerf = (totalRev / targetRev) * 100;
       let perfBadge = document.getElementById("card-rev-perf");
@@ -1941,8 +2732,7 @@
           actualVal = isYTD ? rowObj.values.reduce((a, b) => a + b, 0) : rowObj.values[idx];
         }
 
-        let baseTarget = HVP_DATA.targets[prod.key] || 0;
-        let targetVal = isYTD ? baseTarget * HVP_DATA.months.length : baseTarget;
+        let targetVal = getTargetToDate(prod.key, idx, isYTD);
         
         let achievement = targetVal > 0 ? (actualVal / targetVal) * 100 : 100;
         let colorClass = "text-rose-500";
@@ -1981,21 +2771,24 @@
       }));
 
       rows.push({ name: "Chi phí cố định (Total Fixed cost)", actual: summary.fixed, group: "Fixed_Total", level: 0, status: "Show" });
-      FIXED_SHOWN_LINES.forEach(line => rows.push({
-        name: line.name,
-        actual: Math.abs(getCostLineValue(line.name, idx, isYTD)),
-        key: line.key,
-        group: line.isParent ? "OtherOH_Total" : "Fixed",
-        level: line.indent ? 2 : 1,
-        status: line.isParent ? "Show / parent" : "Shown line"
-      }));
+      FIXED_SHOWN_LINES.forEach(line => {
+        const fixedActual = getCurrentFixedCostAmount(line.key);
+        rows.push({
+          name: line.name,
+          actual: fixedActual !== null ? fixedActual : Math.abs(getCostLineValue(line.name, idx, isYTD)),
+          key: line.key,
+          group: line.isParent ? "OtherOH_Total" : "Fixed",
+          level: line.indent ? 2 : 1,
+          status: line.isParent ? "Show / parent" : "Shown line"
+        });
+      });
 
       rows.push({ name: "Unshown Cost", actual: summary.unshown, group: "Unshown_Total", level: 0, status: "Gom nhóm" });
       rows.push({ name: "TỔNG CHI PHÍ (TOTAL COST)", actual: summary.total, group: "Grand_Total", level: 0, status: "Reconciled" });
 
       rows.forEach(cost => {
         const absActual = cost.actual || 0;
-        const absBudget = cost.key ? Math.abs(getCostLineBudget(cost.key, isYTD)) : 0;
+        const absBudget = cost.key ? Math.abs(getCostLineBudget(cost.key, idx, isYTD)) : 0;
         const variance = absBudget - absActual;
         const varPercent = absBudget > 0 ? (absActual / absBudget * 100) : 0;
         const varianceDisplay = absBudget > 0 ? `${variance >= 0 ? '+' : ''}${formatUSD(variance)} (${varPercent.toFixed(0)}%)` : "-";
@@ -2192,6 +2985,32 @@
       return row.values[idx];
     }
 
+    function getRevenueSameMtdValueByIndex(baseIdx, referenceIdx) {
+      if (baseIdx < 0 || referenceIdx < 0 || !HVP_DATA.months[baseIdx] || !HVP_DATA.months[referenceIdx]) return 0;
+      const referenceMonthEnd = HVP_DATA.months[referenceIdx];
+      const baseMonthEnd = HVP_DATA.months[baseIdx];
+      const referenceCoverage = MONTH_DAY_COVERAGE[referenceMonthEnd] || getCurrentMtdInfoForMonth(referenceMonthEnd);
+      const baseDaysInMonth = getDaysInMonthFromMonthEnd(baseMonthEnd);
+      const cutoffDay = Math.min(referenceCoverage.daysElapsed || baseDaysInMonth, baseDaysInMonth);
+
+      // If the selected/reference period is a full month, use the normal aggregated value.
+      if (cutoffDay >= baseDaysInMonth) return getRevenueValueByIndex(baseIdx) || 0;
+
+      const scopedRecords = filterRecordsByValidLoc(RAW_DAILY_RECORDS || []);
+      const monthRecords = scopedRecords.filter(r => {
+        const club = String(r.Club || r.club || '').trim();
+        if (CURRENT_CLUB !== 'ALL' && club !== CURRENT_CLUB) return false;
+        const monthEnd = toMonthEnd(readField(r, ['EOM', 'eom', 'Date', 'date']));
+        if (monthEnd !== baseMonthEnd) return false;
+        const rowDay = parseYmdLocal(readField(r, ['Day.1', 'Day', 'Date', 'date']));
+        if (!rowDay) return false;
+        return rowDay.getDate() <= cutoffDay;
+      });
+
+      if (!monthRecords.length) return getRevenueValueByIndex(baseIdx) || 0;
+      return monthRecords.reduce((sum, r) => sum + safeNum(readField(r, ['Total', 'Total Revenue'])), 0);
+    }
+
     function getMonthShortLabel(period) {
       if (!period || period === "YTD") return "YTD";
       const d = new Date(period + "T00:00:00");
@@ -2219,10 +3038,12 @@
         momLabel = "Target";
         yoyLabel = "YTD 2025";
       } else {
-        momBase = getRevenueValueByIndex(idx - 1) || 0;
-        yoyBase = getRevenueValueByIndex(idx - 12) || 0;
-        momLabel = idx > 0 ? getMonthShortLabel(HVP_DATA.months[idx - 1]) : "previous month";
-        yoyLabel = idx >= 12 ? getMonthShortLabel(HVP_DATA.months[idx - 12]) : "last year";
+        momBase = idx > 0 ? getRevenueSameMtdValueByIndex(idx - 1, idx) : 0;
+        yoyBase = idx >= 12 ? getRevenueSameMtdValueByIndex(idx - 12, idx) : 0;
+        const selectedCoverage = MONTH_DAY_COVERAGE[HVP_DATA.months[idx]] || getCurrentMtdInfoForMonth(HVP_DATA.months[idx]);
+        const sameDaySuffix = selectedCoverage.daysElapsed < selectedCoverage.daysInMonth ? ` MTD ${selectedCoverage.daysElapsed}d` : '';
+        momLabel = idx > 0 ? `${getMonthShortLabel(HVP_DATA.months[idx - 1])}${sameDaySuffix}` : "previous month";
+        yoyLabel = idx >= 12 ? `${getMonthShortLabel(HVP_DATA.months[idx - 12])}${sameDaySuffix}` : "last year";
       }
 
       const vsTargetPct = targetRev ? ((totalRev - targetRev) / Math.abs(targetRev)) * 100 : 0;
@@ -2232,7 +3053,7 @@
       const values = [totalRev, targetRev, momBase || 0, yoyBase || 0];
       const labels = [
         ['MTD', 'vs Target', `${vsTargetPct >= 0 ? '↑' : '↓'} ${Math.abs(vsTargetPct).toFixed(1)}%`],
-        ['Target', 'Monthly Target', ''],
+        ['Target', getTargetLabel(idx, isYTD), ''],
         ['MoM', `vs ${momLabel}`, momBase ? `${momPct >= 0 ? '↑' : '↓'} ${Math.abs(momPct).toFixed(1)}%` : '-'],
         ['YoY', `vs ${yoyLabel}`, yoyBase ? `${yoyPct >= 0 ? '↑' : '↓'} ${Math.abs(yoyPct).toFixed(1)}%` : '-']
       ];
@@ -2252,7 +3073,11 @@
 
     // Thiết lập biểu đồ Revenue 4 cột: MTD, Target, MoM, YoY
     function initRevenueTrendChart() {
-      const ctx = document.getElementById('revenueTrendChart').getContext('2d');
+      const canvas = document.getElementById('revenueTrendChart');
+      if (!canvas) return;
+      const existingChart = Chart.getChart(canvas);
+      if (existingChart) existingChart.destroy();
+      const ctx = canvas.getContext('2d');
       const isDark = document.documentElement.classList.contains('dark');
 
       const valueLabelPlugin = {
@@ -2416,19 +3241,36 @@
 
     // Bộ lọc bảng P&L đã được gỡ bỏ theo GM Operating Dashboard mới
 
-    // Thay đổi club theo bộ chọn admin
+    // Thay đổi club theo bộ chọn admin/search box
     const clubSelectEl = document.getElementById("club-select");
+    const clubSearchInputEl = document.getElementById("club-search-input");
     if (clubSelectEl) {
       clubSelectEl.addEventListener("change", function(e) {
-        CURRENT_CLUB = e.target.value || "ALL";
-        localStorage.setItem("hvp_selected_club", CURRENT_CLUB);
-        if (RAW_DAILY_RECORDS.length) {
-          rebuildDashboardFromCsvRecords();
-          initRevenueTrendChart();
+        applyClubSelection(e.target.value || "ALL");
+      });
+    }
+    if (clubSearchInputEl) {
+      clubSearchInputEl.addEventListener("change", function(e) {
+        const resolvedClub = normalizeClubInput(e.target.value);
+        if (resolvedClub) {
+          applyClubSelection(resolvedClub);
+        } else {
+          e.target.value = CURRENT_CLUB === "ALL" ? "All Clubs" : CURRENT_CLUB;
         }
-        const selectedPeriod = document.getElementById("month-select")?.value || "YTD";
-        updateDashboard(selectedPeriod);
-        setLanguage(currentLang, false);
+      });
+      clubSearchInputEl.addEventListener("keydown", function(e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const resolvedClub = normalizeClubInput(e.target.value);
+          if (resolvedClub) applyClubSelection(resolvedClub);
+        }
+        if (e.key === "Escape") {
+          e.target.value = CURRENT_CLUB === "ALL" ? "All Clubs" : CURRENT_CLUB;
+          e.target.blur();
+        }
+      });
+      clubSearchInputEl.addEventListener("focus", function(e) {
+        e.target.select();
       });
     }
 
@@ -2539,7 +3381,13 @@
       updateSidebarMTDDate();
       initLanguageToggle();
 
+      await loadLocCsv();
+      await loadTargetCsv();
+      await loadFixedCostCsv();
       await loadDailyCsvIntoDashboard();
+      await loadStaffingCostCsv();
+      if (RAW_DAILY_RECORDS.length) rebuildDashboardFromCsvRecords();
+      updateClubAreaLabels();
 
       initRevenueTrendChart();
 
