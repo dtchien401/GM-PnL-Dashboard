@@ -1,0 +1,2395 @@
+<!DOCTYPE html>
+<html lang="vi" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HVP Club GM Dashboard</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .dark .custom-scroll::-webkit-scrollbar-thumb {
+      background: #475569;
+    }
+
+
+    /* Print / PDF is intentionally disabled for this internal dashboard */
+    .print-disabled-message {
+      display: none;
+    }
+
+
+    /* Mobile-friendly dashboard layout */
+    html, body {
+      overflow-x: hidden;
+    }
+    main, #pdf-report, #dashboard-top {
+      min-width: 0;
+    }
+    table {
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    .chart-shell {
+      min-height: 220px;
+    }
+
+    @media (max-width: 1023px) {
+      body {
+        -webkit-text-size-adjust: 100%;
+      }
+      .flex.h-screen.overflow-hidden {
+        height: 100svh;
+      }
+      #pdf-report {
+        width: 100%;
+      }
+      #dashboard-top {
+        padding: 16px !important;
+        gap: 16px;
+        -webkit-overflow-scrolling: touch;
+      }
+      header {
+        height: auto !important;
+        min-height: 64px;
+        padding: 10px 14px !important;
+        gap: 10px;
+        align-items: flex-start !important;
+      }
+      header h2 {
+        font-size: 15px !important;
+        line-height: 1.25 !important;
+      }
+      header > div:first-child {
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+      header > div:last-child {
+        flex: 0 0 auto;
+        gap: 8px !important;
+      }
+      #month-select {
+        max-width: 150px;
+        font-size: 12px !important;
+        padding-right: 18px !important;
+      }
+      #lang-toggle {
+        min-width: 58px !important;
+        padding: 7px 9px !important;
+        font-size: 12px !important;
+      }
+      .rounded-2xl {
+        border-radius: 16px !important;
+      }
+      .p-6 {
+        padding: 16px !important;
+      }
+      .p-5 {
+        padding: 16px !important;
+      }
+      .gap-6 {
+        gap: 16px !important;
+      }
+      .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+        margin-top: 16px !important;
+      }
+      .grid {
+        min-width: 0;
+      }
+      .grid > * {
+        min-width: 0;
+      }
+      canvas {
+        max-width: 100% !important;
+      }
+      .h-80 {
+        height: 260px !important;
+      }
+      .h-56 {
+        height: 220px !important;
+      }
+      table {
+        min-width: 640px;
+        font-size: 12px !important;
+      }
+      th, td {
+        padding: 10px 12px !important;
+        white-space: nowrap;
+      }
+      .overflow-x-auto {
+        -webkit-overflow-scrolling: touch;
+      }
+      .overflow-x-auto::after {
+        content: 'Swipe →';
+        display: block;
+        font-size: 11px;
+        color: #94a3b8;
+        text-align: right;
+        padding-top: 6px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      #dashboard-top {
+        padding: 12px !important;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        flex-wrap: wrap;
+        align-items: center !important;
+      }
+      header > div:first-child {
+        width: 100%;
+      }
+      header > div:last-child {
+        width: 100%;
+        justify-content: space-between;
+      }
+      #month-select {
+        max-width: calc(100vw - 110px);
+        width: 100%;
+      }
+      #mobile-menu-btn {
+        padding: 8px !important;
+      }
+      #mobile-sidebar > div {
+        width: min(84vw, 320px) !important;
+      }
+      .text-2xl {
+        font-size: 20px !important;
+        line-height: 1.2 !important;
+      }
+      .text-xl {
+        font-size: 18px !important;
+      }
+      .text-base {
+        font-size: 14px !important;
+      }
+      .text-sm {
+        font-size: 12px !important;
+      }
+      .text-xs {
+        font-size: 11px !important;
+      }
+      .h-80 {
+        height: 240px !important;
+      }
+      .h-56 {
+        height: 210px !important;
+      }
+      table {
+        min-width: 680px;
+      }
+      .grid-cols-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      }
+      .lg\:grid-cols-4, .xl\:grid-cols-2, .lg\:grid-cols-3 {
+        grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+      }
+      .sm\:grid-cols-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      }
+      .absolute.right-0.bottom-0 {
+        display: none !important;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .grid-cols-2, .sm\:grid-cols-3 {
+        grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+      }
+      #month-select {
+        max-width: calc(100vw - 96px);
+      }
+    }
+
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 12mm;
+      }
+      body * {
+        visibility: hidden !important;
+      }
+      .print-disabled-message,
+      .print-disabled-message * {
+        visibility: visible !important;
+      }
+      .print-disabled-message {
+        display: flex !important;
+        position: fixed !important;
+        inset: 0 !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+        font-family: Arial, sans-serif !important;
+        font-size: 22px !important;
+        font-weight: 700 !important;
+        text-align: center !important;
+        padding: 40px !important;
+        z-index: 999999 !important;
+      }
+    }
+  </style>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              700: '#0369a1',
+              800: '#075985',
+              900: '#0c4a6e',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-300">
+
+  <div class="print-disabled-message">Printing / PDF export is disabled for this internal dashboard.</div>
+
+  <div class="flex h-screen overflow-hidden">
+    <!-- Sidebar -->
+    <aside class="hidden lg:flex flex-col w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 shrink-0">
+      <div class="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-500 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-brand-500/20">
+            H
+          </div>
+          <div>
+            <h1 class="font-extrabold text-sm tracking-wide text-slate-900 dark:text-white uppercase">HVP Club</h1>
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">GM Name</div>
+            <span class="text-xs text-emerald-500 font-medium flex items-center gap-1 mt-0.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span id="sidebar-mtd-date">MTD = today - 1</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <nav class="flex-1 p-4 space-y-1.5 overflow-y-auto">
+        <a href="#dashboard-top" data-nav-link data-section="dashboard-top" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-medium transition-all group">
+          <i class="fa-solid fa-chart-pie text-lg transition-transform group-hover:scale-110"></i>
+          <span>Tổng quan (P&L)</span>
+        </a>
+        <a href="#breakdowns" data-nav-link data-section="breakdowns" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-white font-medium transition-all group">
+          <i class="fa-solid fa-money-bill-trend-up text-lg transition-transform group-hover:scale-110"></i>
+          <span>Revenue</span>
+        </a>
+        <a href="#expenses-breakdown" data-nav-link data-section="expenses-breakdown" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-white font-medium transition-all group">
+          <i class="fa-solid fa-wallet text-lg transition-transform group-hover:scale-110"></i>
+          <span>Cost</span>
+        </a>
+        <a href="#table-section" data-nav-link data-section="table-section" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-white font-medium transition-all group">
+          <i class="fa-solid fa-table-list text-lg transition-transform group-hover:scale-110"></i>
+          <span>CC, CS Productivity</span>
+        </a>
+      </nav>
+
+      <div class="p-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+        <!-- Club Specs -->
+        <div class="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-800/80">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span>Diện tích CLB</span>
+            <i class="fa-solid fa-maximize text-brand-500"></i>
+          </div>
+          <div class="font-bold text-sm text-slate-800 dark:text-slate-200">
+            3,613.6 m²
+          </div>
+        </div>
+        
+        <!-- Toggle Theme -->
+        <button id="theme-toggle" class="flex items-center justify-between w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
+          <span class="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+            <i class="fa-solid fa-moon dark:hidden"></i>
+            <i class="fa-solid fa-sun hidden dark:block text-yellow-400"></i>
+            <span class="dark:hidden">Chế độ tối</span>
+            <span class="hidden dark:block">Chế độ sáng</span>
+          </span>
+          <span class="w-6 h-4 bg-slate-200 dark:bg-brand-600 rounded-full relative transition-colors flex items-center px-0.5">
+            <span class="w-3 h-3 bg-white rounded-full shadow-sm transform transition-transform duration-300 translate-x-0 dark:translate-x-2"></span>
+          </span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Panel -->
+    <main id="pdf-report" class="flex-1 flex flex-col h-screen overflow-hidden">
+      <!-- Header -->
+      <header class="h-16 bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-4">
+          <!-- Mobile Sidebar Toggle -->
+          <button id="mobile-menu-btn" class="lg:hidden p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-lg">
+            <i class="fa-solid fa-bars text-xl"></i>
+          </button>
+          
+          <div>
+            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Báo cáo Tài chính & Vận hành HVP</h2>
+            <p class="text-xs text-slate-400 hidden sm:block">Dành riêng cho Ban Giám Đốc (GM) • Cập nhật dữ liệu chi phí nhân sự và vận hành cố định</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <!-- Time Range Slicer -->
+          <div class="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
+            <label for="month-select" class="text-xs font-semibold px-2 text-slate-500 hidden md:block">Chọn Kỳ:</label>
+            <select id="month-select" class="bg-transparent text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none pr-6 pl-1 py-1 cursor-pointer">
+              <option value="YTD">YTD Lũy kế (17T)</option>
+              <option value="2025-01-31">Tháng 01/2025 (Act)</option>
+              <option value="2025-02-28">Tháng 02/2025 (Act)</option>
+              <option value="2025-03-31">Tháng 03/2025 (Act)</option>
+              <option value="2025-04-30">Tháng 04/2025 (Act)</option>
+              <option value="2025-05-31">Tháng 05/2025 (Act)</option>
+              <option value="2025-06-30">Tháng 06/2025 (Act)</option>
+              <option value="2025-07-31">Tháng 07/2025 (Act)</option>
+              <option value="2025-08-31">Tháng 08/2025 (Act)</option>
+              <option value="2025-09-30">Tháng 09/2025 (Act)</option>
+              <option value="2025-10-31">Tháng 10/2025 (Act)</option>
+              <option value="2025-11-30">Tháng 11/2025 (Act)</option>
+              <option value="2025-12-31">Tháng 12/2025 (Act)</option>
+              <option value="2026-01-31">Tháng 01/2026 (Act)</option>
+              <option value="2026-02-28">Tháng 02/2026 (Act)</option>
+              <option value="2026-03-31">Tháng 03/2026 (Act)</option>
+              <option value="2026-04-30" selected>Tháng 04/2026 (Act)</option>
+              <option value="2026-05-31">Tháng 05/2026 (Flash - incomplete fixed detail)</option>
+            </select>
+          </div>
+
+          <button id="lang-toggle" class="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-200 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors min-w-[74px]">
+            VI | EN
+          </button>
+        </div>
+      </header>
+
+      <!-- Scrollable Workspace -->
+      <div id="dashboard-top" class="flex-1 overflow-y-auto p-6 space-y-6 custom-scroll">
+        
+        <!-- Info Alert Panel -->
+        <div class="bg-gradient-to-r from-teal-500/10 to-brand-500/10 border border-brand-500/20 p-4 rounded-2xl flex items-start gap-3.5">
+          <span class="w-9 h-9 rounded-xl bg-brand-500/20 flex items-center justify-center text-brand-600 dark:text-brand-400 shrink-0 mt-0.5">
+            <i class="fa-solid fa-circle-check"></i>
+          </span>
+          <div>
+            <h4 class="text-sm font-bold text-slate-900 dark:text-white">Cấu hình Chi phí Đúng mục tiêu</h4>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Cơ cấu chi phí bám theo hierarchy P&L: <strong>Variable Cost</strong>, <strong>Staffing Cost</strong>, <strong>Fixed Cost</strong>; phần không show trực tiếp như Rental và các khoản ngoài phạm vi GM được gom vào <strong>Unshown Cost</strong>. Tổng chi phí luôn khớp với <strong>TỔNG CHI PHÍ (TOTAL COST)</strong>.</p>
+          </div>
+        </div>
+
+        <!-- Scorecard Rows (Dynamic Values) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <!-- Card 1: Total Revenue -->
+          <div class="bg-white dark:bg-slate-950 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+            <div class="absolute right-0 bottom-0 translate-y-1/4 translate-x-1/4 w-32 h-32 bg-brand-500/5 rounded-full blur-2xl"></div>
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tổng doanh thu</p>
+                <h3 id="card-rev-value" class="text-2xl font-extrabold text-slate-900 dark:text-white mt-1.5 transition-all">...</h3>
+              </div>
+              <span class="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                <i class="fa-solid fa-hand-holding-dollar text-lg"></i>
+              </span>
+            </div>
+            <div class="mt-4 flex items-center justify-between text-xs">
+              <span class="text-slate-400">Target: <strong id="card-rev-target" class="text-slate-600 dark:text-slate-300">...</strong></span>
+              <span id="card-rev-perf" class="px-2.5 py-1 rounded-full font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">...</span>
+            </div>
+          </div>
+
+          <!-- Card 2: EBITDA -->
+          <div class="bg-white dark:bg-slate-950 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+            <div class="absolute right-0 bottom-0 translate-y-1/4 translate-x-1/4 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl"></div>
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Lợi nhuận EBITDA</p>
+                <h3 id="card-ebitda-value" class="text-2xl font-extrabold text-slate-900 dark:text-white mt-1.5 transition-all">...</h3>
+              </div>
+              <span class="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                <i class="fa-solid fa-chart-line-up text-lg"></i>
+              </span>
+            </div>
+            <div class="mt-4 flex items-center justify-between text-xs">
+              <span class="text-slate-400">Biên LN: <strong id="card-ebitda-margin" class="text-slate-600 dark:text-slate-300">...</strong></span>
+              <span id="card-ebitda-status" class="px-2.5 py-1 rounded-full font-bold bg-brand-50 dark:bg-brand-950/40 text-brand-600 dark:text-brand-400">...</span>
+            </div>
+          </div>
+
+          <!-- Card 3: Total Cost (Thay OpEx cũ) -->
+          <div class="bg-white dark:bg-slate-950 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+            <div class="absolute right-0 bottom-0 translate-y-1/4 translate-x-1/4 w-32 h-32 bg-rose-500/5 rounded-full blur-2xl"></div>
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tổng chi phí (Total Cost)</p>
+                <h3 id="card-opex-value" class="text-2xl font-extrabold text-slate-900 dark:text-white mt-1.5 transition-all">...</h3>
+              </div>
+              <span class="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-900/30 flex items-center justify-center text-rose-600 dark:text-rose-400">
+                <i class="fa-solid fa-receipt text-lg"></i>
+              </span>
+            </div>
+            <div class="mt-4 flex items-center justify-between text-xs">
+              <span class="text-slate-400">Tỷ trọng/Doanh thu: <strong id="card-opex-ratio" class="text-slate-600 dark:text-slate-300">...</strong></span>
+              <span id="card-opex-staff" class="text-slate-400 font-medium">Nhân sự: <strong class="text-slate-600 dark:text-slate-200">...</strong></span>
+            </div>
+          </div>
+
+          <!-- Card 4: Operating Metrics per SQM -->
+          <div class="bg-white dark:bg-slate-950 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+            <div class="absolute right-0 bottom-0 translate-y-1/4 translate-x-1/4 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl"></div>
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Doanh thu / m² (3.6K m²)</p>
+                <h3 id="card-sqm-rev" class="text-2xl font-extrabold text-slate-900 dark:text-white mt-1.5 transition-all">...</h3>
+              </div>
+              <span class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                <i class="fa-solid fa-border-all text-lg"></i>
+              </span>
+            </div>
+            <div class="mt-4 flex items-center justify-between text-xs">
+              <span class="text-slate-400">Chi phí / m² (Không thuê):</span>
+              <span id="card-sqm-cost" class="font-bold text-amber-600 dark:text-amber-400">...</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Charts Dashboard (Trends) -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- Chart 1: Revenue 4-column comparison -->
+          <div class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm lg:col-span-2">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h4 class="text-base font-bold text-slate-900 dark:text-white">Revenue Trend</h4>
+                <p class="text-xs text-slate-400">Key revenue performance overview: MTD, Target, MoM and YoY</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
+              <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40">
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">MTD</p>
+                <p id="rev4-mtd-value" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+                <p id="rev4-mtd-sub" class="text-xs text-slate-500 mt-1">vs Target</p>
+              </div>
+              <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40">
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">Target</p>
+                <p id="rev4-target-value" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+                <p class="text-xs text-slate-500 mt-1">Monthly Target</p>
+              </div>
+              <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40">
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">MoM</p>
+                <p id="rev4-mom-value" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+                <p id="rev4-mom-sub" class="text-xs text-slate-500 mt-1">vs previous month</p>
+              </div>
+              <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40">
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-wide">YoY</p>
+                <p id="rev4-yoy-value" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+                <p id="rev4-yoy-sub" class="text-xs text-slate-500 mt-1">vs last year</p>
+              </div>
+            </div>
+
+            <div class="h-80 w-full relative">
+              <canvas id="revenueTrendChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Chart 2: Expense Distribution (Phân rã lại dựa trên Staffing vs Fixed Cost) -->
+          <div class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+            <div>
+              <h4 class="text-base font-bold text-slate-900 dark:text-white mb-1">Cơ cấu Chi phí GM View</h4>
+              <p class="text-xs text-slate-400 mb-4">Level 1 theo P&L: Variable, Staffing, Fixed và Unshown Cost</p>
+            </div>
+            <div class="h-56 w-full relative flex items-center justify-center">
+              <canvas id="expenseStructureChart"></canvas>
+            </div>
+            <div class="mt-4 space-y-2 text-xs">
+              <div class="flex justify-between items-center px-2 py-1.5 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                <span class="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-medium">
+                  <span class="w-2.5 h-2.5 rounded-full bg-brand-500"></span> Variable Cost
+                </span>
+                <span id="exp-variable-pct" class="font-bold">...</span>
+              </div>
+              <div class="flex justify-between items-center px-2 py-1.5 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                <span class="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-medium">
+                  <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Staffing Cost
+                </span>
+                <span id="exp-staff-pct" class="font-bold">...</span>
+              </div>
+              <div class="flex justify-between items-center px-2 py-1.5 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                <span class="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-medium">
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Fixed Cost
+                </span>
+                <span id="exp-fixed-pct" class="font-bold">...</span>
+              </div>
+              <div class="flex justify-between items-center px-2 py-1.5 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                <span class="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-medium">
+                  <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span> Unshown Cost
+                </span>
+                <span id="exp-unshown-pct" class="font-bold">...</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Operational Breakdown Row -->
+        <div id="breakdowns" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- Performance breakdown by month / YTD -->
+          <div class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm lg:col-span-2">
+            <h4 class="text-base font-bold text-slate-900 dark:text-white mb-4">Phân rã Kết quả Doanh thu theo Sản phẩm</h4>
+            <div class="overflow-x-auto custom-scroll">
+              <table class="w-full text-sm text-left">
+                <thead class="text-xs uppercase bg-slate-50 dark:bg-slate-900 text-slate-500">
+                  <tr>
+                    <th class="px-4 py-3 rounded-l-lg">Hạng mục</th>
+                    <th class="px-4 py-3 text-right">Đạt được (Actual)</th>
+                    <th class="px-4 py-3 text-right">Mục tiêu (Target)</th>
+                    <th class="px-4 py-3 text-right rounded-r-lg">Hiệu suất (% Var)</th>
+                  </tr>
+                </thead>
+                <tbody id="product-breakdown-body" class="divide-y divide-slate-100 dark:divide-slate-900">
+                  <!-- Javascript dynamic load -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- PT Efficiency quick card -->
+          <div class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+            <div>
+              <h4 class="text-base font-bold text-slate-900 dark:text-white">PT Efficiency Snapshot</h4>
+              <p class="text-xs text-slate-400 mt-1">Tình hình bán, phục vụ và hiệu suất sử dụng PT trong kỳ</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 my-5">
+              <div class="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                <p class="text-xs text-slate-400">PT Headcount</p>
+                <p id="pt-snap-headcount" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+              </div>
+              <div class="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                <p class="text-xs text-slate-400">PT Utilization</p>
+                <p id="pt-snap-util" class="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">-</p>
+              </div>
+              <div class="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                <p class="text-xs text-slate-400">SS Sold</p>
+                <p id="pt-snap-sold" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+              </div>
+              <div class="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-800">
+                <p class="text-xs text-slate-400">SS Serve</p>
+                <p id="pt-snap-serve" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+              </div>
+            </div>
+            <div class="p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-100 dark:border-brand-800/50 rounded-xl">
+              <p class="text-xs text-slate-500 dark:text-slate-300">PT productivity: <strong id="pt-snap-burn-hc" class="text-slate-900 dark:text-white">-</strong> SS burn / HC</p>
+            </div>
+          </div>        </div>
+
+        <!-- Section 3: Phân tích sâu các dòng Chi phí thực tế (Expenses Breakdown) -->
+        <div id="expenses-breakdown" class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+            <div>
+              <h4 class="text-base font-bold text-slate-900 dark:text-white">Chi tiết Tình hình Chi phí GM (Actual vs Budget)</h4>
+              <p class="text-xs text-slate-400">Level 1 bám theo P&L; các dòng không show chi tiết được gom vào Unshown Cost để tổng chi phí khớp 100%</p>
+            </div>
+            <span class="text-xs bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg text-slate-500 font-semibold">Đơn vị: USD ($)</span>
+          </div>
+          <div class="overflow-x-auto custom-scroll">
+            <table class="w-full text-sm text-left">
+              <thead class="text-xs uppercase bg-slate-50 dark:bg-slate-900 text-slate-500">
+                <tr>
+                  <th class="px-4 py-3 rounded-l-lg">Hạng mục Chi phí</th>
+                  <th class="px-4 py-3 text-right">Chi thực tế (Actual)</th>
+                  <th class="px-4 py-3 text-right">Hạn mức (Budget)</th>
+                  <th class="px-4 py-3 text-right">Chênh lệch (Variance)</th>
+                  <th class="px-4 py-3 text-right rounded-r-lg">Trạng thái Kiểm soát</th>
+                </tr>
+              </thead>
+              <tbody id="cost-breakdown-body" class="divide-y divide-slate-100 dark:divide-slate-900">
+                <!-- Javascript dynamic load -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Operating KPI Section: PT Efficiency + Member Activity -->
+        <section id="table-section" class="space-y-6">
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <!-- PT Efficiency -->
+            <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div class="p-6 border-b border-slate-200 dark:border-slate-800">
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">Efficiency - PT</h3>
+                <p class="text-xs text-slate-400 mt-1">Theo dõi năng suất đội ngũ PT: bán session, burn session và utilization</p>
+              </div>
+              <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 p-6">
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <p class="text-xs text-slate-400">PT Headcount</p>
+                  <p id="pt-kpi-headcount" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <p class="text-xs text-slate-400">PT SS Sold</p>
+                  <p id="pt-kpi-sold" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <p class="text-xs text-slate-400">PT SS Serve</p>
+                  <p id="pt-kpi-serve" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+                </div>
+                <div class="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50">
+                  <p class="text-xs text-emerald-600 dark:text-emerald-400">PT Utilization</p>
+                  <p id="pt-kpi-util" class="text-xl font-extrabold text-emerald-700 dark:text-emerald-300 mt-1">-</p>
+                </div>
+              </div>
+              <div class="overflow-x-auto custom-scroll px-6 pb-6">
+                <table class="w-full text-sm text-left">
+                  <thead class="text-xs uppercase bg-slate-50 dark:bg-slate-900 text-slate-500">
+                    <tr>
+                      <th class="px-4 py-3 rounded-l-lg">KPI</th>
+                      <th class="px-4 py-3">Unit</th>
+                      <th class="px-4 py-3 text-right rounded-r-lg">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pt-efficiency-body" class="divide-y divide-slate-100 dark:divide-slate-900"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Member Activity -->
+            <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div class="p-6 border-b border-slate-200 dark:border-slate-800">
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">Member Activity</h3>
+                <p class="text-xs text-slate-400 mt-1">Theo dõi biến động hội viên và mức độ thâm nhập PT</p>
+              </div>
+              <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 p-6">
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <p class="text-xs text-slate-400">Active Members</p>
+                  <p id="mem-kpi-active" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <p class="text-xs text-slate-400">New Joins</p>
+                  <p id="mem-kpi-new" class="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">-</p>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <p class="text-xs text-slate-400">Leavers</p>
+                  <p id="mem-kpi-leavers" class="text-xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">-</p>
+                </div>
+                <div class="p-4 rounded-xl bg-brand-50 dark:bg-brand-900/20 border border-brand-100 dark:border-brand-800/50">
+                  <p class="text-xs text-brand-600 dark:text-brand-400">Net Movement</p>
+                  <p id="mem-kpi-net" class="text-xl font-extrabold text-brand-700 dark:text-brand-300 mt-1">-</p>
+                </div>
+              </div>
+              <div class="overflow-x-auto custom-scroll px-6 pb-6">
+                <table class="w-full text-sm text-left">
+                  <thead class="text-xs uppercase bg-slate-50 dark:bg-slate-900 text-slate-500">
+                    <tr>
+                      <th class="px-4 py-3 rounded-l-lg">KPI</th>
+                      <th class="px-4 py-3">Unit</th>
+                      <th class="px-4 py-3 text-right rounded-r-lg">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody id="member-activity-body" class="divide-y divide-slate-100 dark:divide-slate-900"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <!-- Guest Funnel -->
+            <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div class="p-6 border-b border-slate-200 dark:border-slate-800">
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">Guest</h3>
+                <p class="text-xs text-slate-400 mt-1">Theo dõi traffic, NMU và tỷ lệ closing từ guest thành khách hàng</p>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 p-6">
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <p class="text-xs text-slate-400">Total SHOW</p>
+                  <p id="guest-kpi-show" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+                  <p class="text-[11px] text-slate-400 mt-1"># Traffic</p>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <p class="text-xs text-slate-400">NMU</p>
+                  <p id="guest-kpi-nmu" class="text-xl font-extrabold text-brand-600 dark:text-brand-400 mt-1">-</p>
+                  <p class="text-[11px] text-slate-400 mt-1"># Clients</p>
+                </div>
+                <div class="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50">
+                  <p class="text-xs text-emerald-600 dark:text-emerald-400">% Closing NMU</p>
+                  <p id="guest-kpi-closing" class="text-xl font-extrabold text-emerald-700 dark:text-emerald-300 mt-1">-</p>
+                  <p class="text-[11px] text-emerald-600/70 dark:text-emerald-400/70 mt-1">%</p>
+                </div>
+              </div>
+              <div class="overflow-x-auto custom-scroll px-6 pb-6">
+                <table class="w-full text-sm text-left">
+                  <thead class="text-xs uppercase bg-slate-50 dark:bg-slate-900 text-slate-500">
+                    <tr>
+                      <th class="px-4 py-3 rounded-l-lg">KPI</th>
+                      <th class="px-4 py-3">Unit</th>
+                      <th class="px-4 py-3 text-right rounded-r-lg">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody id="guest-body" class="divide-y divide-slate-100 dark:divide-slate-900"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- CS - No. of contracts -->
+            <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div class="p-6 border-b border-slate-200 dark:border-slate-800">
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">CS - No. of Contracts</h3>
+                <p class="text-xs text-slate-400 mt-1">Số lượng hợp đồng theo nhóm dịch vụ, dùng để theo dõi conversion và product mix</p>
+              </div>
+              <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 p-6">
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <p class="text-xs text-slate-400">PT Contracts</p>
+                  <p id="contract-kpi-pt" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <p class="text-xs text-slate-400">CES</p>
+                  <p id="contract-kpi-ces" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                  <p class="text-xs text-slate-400">Kickfit</p>
+                  <p id="contract-kpi-kickfit" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+                </div>
+                <div class="p-4 rounded-xl bg-brand-50 dark:bg-brand-900/20 border border-brand-100 dark:border-brand-800/50">
+                  <p class="text-xs text-brand-600 dark:text-brand-400">Total</p>
+                  <p id="contract-kpi-total" class="text-xl font-extrabold text-brand-700 dark:text-brand-300 mt-1">-</p>
+                </div>
+              </div>
+              <div class="overflow-x-auto custom-scroll px-6 pb-6">
+                <table class="w-full text-sm text-left">
+                  <thead class="text-xs uppercase bg-slate-50 dark:bg-slate-900 text-slate-500">
+                    <tr>
+                      <th class="px-4 py-3 rounded-l-lg">Service</th>
+                      <th class="px-4 py-3">Group</th>
+                      <th class="px-4 py-3 text-right rounded-r-lg">Contracts</th>
+                    </tr>
+                  </thead>
+                  <tbody id="contracts-body" class="divide-y divide-slate-100 dark:divide-slate-900"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Footer -->
+      <footer class="h-10 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-6 flex items-center justify-between text-xs text-slate-400 shrink-0">
+        <span>© 2026 Workout Club HVP Plaza (Hùng Vương Plaza). All rights reserved.</span>
+        <span>GM Operating Dashboard • Cost / PT Efficiency / Member Activity</span>
+      </footer>
+    </main>
+  </div>
+
+  <!-- Mobile Sidebar Overlay Menu -->
+  <div id="mobile-sidebar" class="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 hidden transition-all">
+    <div class="w-64 bg-white dark:bg-slate-950 h-full flex flex-col p-6 shadow-2xl relative">
+      <button id="close-mobile-btn" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+      <div class="flex items-center gap-3 mb-8">
+        <div class="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white font-bold text-xl">H</div>
+        <div>
+          <h1 class="font-extrabold text-sm text-slate-900 dark:text-white uppercase">HVP Club</h1>
+          <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">GM Name</div>
+          <span class="text-xs text-emerald-500" id="mobile-sidebar-mtd-date">MTD = today - 1</span>
+        </div>
+      </div>
+      <nav class="space-y-2 flex-1">
+        <a href="#dashboard-top" data-nav-link data-section="dashboard-top" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-medium">
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>Tổng quan (P&L)</span>
+        </a>
+        <a href="#breakdowns" data-nav-link data-section="breakdowns" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white font-medium transition-all">
+          <i class="fa-solid fa-money-bill-trend-up"></i>
+          <span>Revenue</span>
+        </a>
+        <a href="#expenses-breakdown" data-nav-link data-section="expenses-breakdown" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white font-medium transition-all">
+          <i class="fa-solid fa-wallet"></i>
+          <span>Cost</span>
+        </a>
+        <a href="#table-section" data-nav-link data-section="table-section" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white font-medium transition-all">
+          <i class="fa-solid fa-table-list"></i>
+          <span>CC, CS Productivity</span>
+        </a>
+      </nav>
+      <div class="border-t border-slate-100 pt-4 text-xs text-slate-400">
+        3,613.6 m² • Workout Club
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // DỮ LIỆU ĐÃ ĐƯỢC LỌC VÀ CHUẨN HÓA TRỰC TIẾP THEO YÊU CẦU CỦA USER
+    const HVP_DATA = {
+      months: [
+        "2025-01-31", "2025-02-28", "2025-03-31", "2025-04-30", "2025-05-31", "2025-06-30",
+        "2025-07-31", "2025-08-31", "2025-09-30", "2025-10-31", "2025-11-30", "2025-12-31",
+        "2026-01-31", "2026-02-28", "2026-03-31", "2026-04-30", "2026-05-31"
+      ],
+      targets: {
+        "NMS": 135000,
+        "PT": 85000,
+        "Y&I": 3000,
+        "Supplement": 1000,
+        "Retail": 2000,
+        "Califresh": 500,
+        "Hypoxi": 3000,
+        "VAS": 0,
+        "Total Revenue": 242000,
+        
+        // Staffing Targets
+        "Staffing - NMS": -10000,
+        "Staffing - PT": -15000,
+        "Staffing - Hypoxi": -1500,
+        "Staffing - CAA": -1000,
+        "Staffing - Spa": -1000,
+        "Staffing - Yoga": -2500,
+        "Staffing - GX": -2500,
+        "Staffing - CMO": -3500,
+
+        // Fixed Cost Targets
+        "Repair & maintenance": -4500,
+        "Supplies": -2000,
+        "Utilities": -6000,
+        "Other OH": -3000,
+        "Total Fixed cost": -15500,
+        
+        // Combined Total Target
+        "TOTAL COST": -52500,
+        "Laundry Service": -5000,
+        "Security": -500,
+        "Cleaning_Center": -4500,
+        "Other OH Others": -2800
+      },
+      rows: [
+        // --- DOANH THU (Revenues) ---
+        {
+          name: "Doanh thu hội viên mới (NMS)",
+          category: "Revenue",
+          values: [122803, 148768, 116107, 114547, 142507, 121193, 127770, 128366, 121054, 118432, 112543, 131454, 110452, 98450, 98802, 77802, 92356]
+        },
+        {
+          name: "Doanh thu HLV cá nhân (PT)",
+          category: "Revenue",
+          values: [78432, 81450, 75640, 79432, 84521, 79245, 83120, 81452, 79354, 82143, 76420, 89123, 74320, 71200, 140131, 118389, 65812]
+        },
+        {
+          name: "Doanh thu Yoga & Group X (Y&I)",
+          category: "Revenue",
+          values: [3120, 2980, 3450, 3120, 2890, 3100, 3210, 3050, 2940, 3150, 2870, 3450, 2910, 2850, 1475, 1266, 0]
+        },
+        {
+          name: "Doanh thu Supplement",
+          category: "Revenue",
+          values: [980, 1020, 890, 1150, 1120, 950, 1180, 1040, 910, 980, 1120, 1230, 890, 920, 1391, 1575, 1204]
+        },
+        {
+          name: "Doanh thu Bán lẻ (Retail)",
+          category: "Revenue",
+          values: [2100, 1850, 2240, 1950, 2150, 1890, 2010, 1980, 2120, 1950, 2050, 2410, 1870, 1750, 0, 0, 0]
+        },
+        {
+          name: "Doanh thu Califresh",
+          category: "Revenue",
+          values: [480, 520, 450, 490, 510, 480, 530, 470, 510, 480, 460, 580, 440, 410, 0, 0, 0]
+        },
+        {
+          name: "Doanh thu Hypoxi",
+          category: "Revenue",
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6054, 3088, 2890]
+        },
+        {
+          name: "Doanh thu VAS",
+          category: "Revenue",
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        },
+        {
+          name: "Doanh thu Califresh & Retail",
+          category: "Revenue",
+          values: [2580, 2370, 2690, 2440, 2660, 2370, 2540, 2450, 2630, 2430, 2510, 2990, 2310, 2160, 6208, 6126, 3422]
+        },
+        {
+          name: "TỔNG DOANH THU (Total Revenue)",
+          category: "Revenue",
+          values: [207915, 236588, 198777, 200689, 233708, 206858, 217830, 216360, 206898, 207135, 195463, 228247, 190882, 175580, 254061, 208246, 165684]
+        },
+
+        // --- CHI PHÍ LƯƠNG NHÂN SỰ (Staffing Costs) ---
+        {
+          name: "Chi phí lương - NMS (Staffing - NMS)",
+          category: "Expense",
+          values: [-8210, -9150, -8410, -8950, -9120, -8250, -8750, -8410, -8120, -8350, -7940, -9210, -7850, -7410, -12058, -9907, -9907]
+        },
+        {
+          name: "Chi phí lương - PT (Staffing - PT)",
+          category: "Expense",
+          values: [-13450, -14120, -12890, -13100, -14050, -13120, -13640, -13520, -13240, -13410, -12950, -14510, -12810, -12540, -13208, -11835, -11835]
+        },
+        {
+          name: "Chi phí lương - Hypoxi (Staffing - Hypoxi)",
+          category: "Expense",
+          values: [-1210, -1180, -1310, -1250, -1190, -1240, -1300, -1250, -1290, -1240, -1180, -1350, -1150, -1120, -918, -894, -894]
+        },
+        {
+          name: "Chi phí lương - Califresh (Staffing - CAA)",
+          category: "Expense",
+          values: [-910, -850, -980, -920, -890, -940, -910, -890, -950, -920, -870, -1020, -840, -810, -1212, -1125, -1125]
+        },
+        {
+          name: "Chi phí lương - Spa (Staffing - Spa)",
+          category: "Expense",
+          values: [-890, -910, -850, -910, -940, -880, -920, -910, -870, -890, -820, -950, -810, -790, 0, 0, 0]
+        },
+        {
+          name: "Chi phí lương - Yoga (Staffing - Yoga)",
+          category: "Expense",
+          values: [-2120, -2310, -2140, -2050, -2250, -2110, -2200, -2180, -2150, -2210, -2180, -2380, -2090, -2020, -3640, -3640, -3640]
+        },
+        {
+          name: "Chi phí lương - GX (Staffing - GX)",
+          category: "Expense",
+          values: [-2150, -2240, -2050, -2140, -2190, -2080, -2140, -2120, -2090, -2140, -2110, -2290, -2010, -1960, -703, -758, -758]
+        },
+        {
+          name: "Chi phí lương - CMO (Staffing - CMO)",
+          category: "Expense",
+          values: [-3200, -3450, -3420, -3220, -3260, -3610, -3700, -3860, -3180, -3880, -3930, -3690, -3850, -3200, -1118, -1015, -1015]
+        },
+
+        // --- CHI PHÍ CỐ ĐỊNH (Fixed Cost Breakdown) ---
+        {
+          name: "Sửa chữa & bảo trì (Repair & maintenance)",
+          category: "Expense",
+          values: [-4120, -3950, -4310, -4450, -4180, -4250, -4380, -4290, -4110, -4350, -3950, -4620, -3890, -3750, -3084, -988, 0]
+        },
+        {
+          name: "Vật tư tiêu hao (Supplies)",
+          category: "Expense",
+          values: [-1850, -1920, -1810, -1990, -1880, -1950, -2100, -1980, -1890, -1940, -1820, -2120, -1780, -1710, -4251, -5994, 0]
+        },
+        {
+          name: "Điện nước & tiện ích (Utilities)",
+          category: "Expense",
+          values: [-5410, -5120, -5890, -6120, -6540, -6980, -7120, -6890, -6120, -5890, -5410, -5980, -5210, -4950, -8661, -10783, 0]
+        },
+        {
+          name: "Chi phí chung khác (Other OH)",
+          category: "Expense",
+          values: [-2560, -2410, -2850, -2940, -2720, -2640, -2890, -2750, -2620, -2710, -2550, -3100, -2450, -2380, -12206, -12872, 0]
+        },
+        {
+          name: "Chi phí cố định (Total Fixed cost)",
+          category: "Expense",
+          values: [-13940, -13400, -14860, -15500, -15320, -15820, -16490, -15910, -14740, -14890, -13730, -15820, -13330, -12790, -28274, -30703, -29976]
+        },
+
+        // --- CHI PHÍ KHÁC ĐỂ ĐỐI SOÁT GM-VIEW (2026 Mar-Apr-May có số liệu thực tế user cung cấp) ---
+        {
+          name: "Chi phí biến đổi theo doanh thu (Total Variable Cost)",
+          category: "Expense",
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -91410, -59259, -54766]
+        },
+        {
+          name: "Chi phí lương (Total Staffing cost)",
+          category: "Expense",
+          values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -45404, -41067, -41067]
+        },
+        { name: "Chi phí lương - MS (Staffing - MS)", category: "Expense", values: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,-8310,-8464,-8464] },
+        { name: "Chi phí lương - MR (Staffing - MR)", category: "Expense", values: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,-164,-151,-151] },
+        { name: "Chi phí lương - DS (Staffing - DS)", category: "Expense", values: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,-275,-265,-265] },
+        { name: "Chi phí lương - MKT (Staffing - MKT)", category: "Expense", values: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,-3666,-2892,-2892] },
+        { name: "Chi phí lương - khác (Staffing - Others)", category: "Expense", values: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,-132,-122,-122] },
+        { name: "Giặt khăn (Laundry Service)", category: "Expense", values: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,-4448,-5080,0] },
+        { name: "Bảo vệ (Security)", category: "Expense", values: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,-932,-431,0] },
+        { name: "Vệ sinh (Cleaning_Center)", category: "Expense", values: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,-4619,-4573,0] },
+        { name: "Khác thuộc Other OH (Others)", category: "Expense", values: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,-2208,-2788,0] },
+        { name: "Chi phí cố định - Thuê (Total Fixed cost-rental)", category: "Expense", values: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,-81669,-84028,-81880] },
+
+        // --- TỔNG CHI PHÍ & LỢI NHUẬN (Totals & Profit) ---
+        {
+          name: "TỔNG CHI PHÍ (TOTAL COST)",
+          category: "Expense",
+          values: [-46140, -46950, -46760, -47140, -49020, -47830, -49530, -48750, -46810, -48110, -45710, -51810, -44280, -42540, -246758, -215058, -207689]
+        },
+        {
+          name: "LỢI NHUẬN EBITDA",
+          category: "Profit",
+          values: [161775, 189638, 152017, 153549, 184688, 159028, 168300, 167610, 160088, 159025, 149753, 176437, 146602, 133040, 7303, -6812, -42005]
+        }
+      ],
+      headcount: {
+        months: [
+          "2025-01-31", "2025-02-28", "2025-03-31", "2025-04-30", "2025-05-31", "2025-06-30",
+          "2025-07-31", "2025-08-31", "2025-09-30", "2025-10-31", "2025-11-30", "2025-12-31",
+          "2026-01-31", "2026-02-28", "2026-03-31", "2026-04-30", "2026-05-31"
+        ],
+        sales: [12.72, 13.75, 15.66, 15.66, 15.60, 15.75, 15.66, 14.72, 14.72, 16.72, 18.74, 18.74, 12.30, 11.50, 12.40, 12.80, 13.20],
+        pt: [15.20, 15.80, 16.40, 16.40, 17.10, 17.50, 17.20, 16.80, 16.20, 16.50, 17.80, 18.20, 14.50, 14.10, 14.80, 15.20, 15.60]
+      }
+    };
+
+
+    // =========================
+    // EXTERNAL DATA LOADER
+    // This dashboard keeps HVP_DATA as fallback. If daily.json exists in the same Netlify site,
+    // it will override the revenue portion from the JSON exported by Office Script.
+    // Expected file path on Netlify/GitHub: ./daily.json
+    // =========================
+    const EXTERNAL_DAILY_JSON_URL = './daily.json';
+
+    function toMonthEnd(dateText) {
+      if (!dateText) return '';
+      const d = new Date(dateText);
+      if (isNaN(d.getTime())) return String(dateText).slice(0, 10);
+      return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+    }
+
+    function safeNum(value) {
+      const n = Number(value || 0);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function upsertHVPRow(rowName, values, category = 'Revenue') {
+      const row = HVP_DATA.rows.find(r => r.name === rowName);
+      if (row) {
+        row.values = values;
+      } else {
+        HVP_DATA.rows.push({ name: rowName, category, values });
+      }
+    }
+
+    function rebuildMonthSelectFromHVPData(selectedValue) {
+      const monthSelect = document.getElementById('month-select');
+      if (!monthSelect || !Array.isArray(HVP_DATA.months) || !HVP_DATA.months.length) return;
+
+      const viMonthLabel = (monthEnd) => {
+        const d = new Date(monthEnd);
+        if (isNaN(d.getTime())) return monthEnd;
+        const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const yyyy = d.getUTCFullYear();
+        return `Tháng ${mm}/${yyyy} (Actual)`;
+      };
+
+      const currentValue = selectedValue || monthSelect.value || HVP_DATA.months[HVP_DATA.months.length - 1];
+      monthSelect.innerHTML = '';
+
+      const ytdOption = document.createElement('option');
+      ytdOption.value = 'YTD';
+      ytdOption.textContent = `YTD Lũy kế (${HVP_DATA.months.length}T)`;
+      monthSelect.appendChild(ytdOption);
+
+      HVP_DATA.months.forEach(m => {
+        const option = document.createElement('option');
+        option.value = m;
+        option.textContent = viMonthLabel(m);
+        monthSelect.appendChild(option);
+      });
+
+      monthSelect.value = HVP_DATA.months.includes(currentValue) || currentValue === 'YTD'
+        ? currentValue
+        : HVP_DATA.months[HVP_DATA.months.length - 1];
+    }
+
+    async function loadDailyJsonIntoDashboard() {
+      try {
+        const res = await fetch(EXTERNAL_DAILY_JSON_URL, { cache: 'no-store' });
+        if (!res.ok) {
+          console.warn(`Cannot load ${EXTERNAL_DAILY_JSON_URL}. Using fallback HVP_DATA.`, res.status);
+          return false;
+        }
+
+        const payload = await res.json();
+        const records = Array.isArray(payload) ? payload : (payload.records || []);
+        if (!Array.isArray(records) || records.length === 0) {
+          console.warn('daily.json has no records. Using fallback HVP_DATA.');
+          return false;
+        }
+
+        // Dashboard này đang là HVP Club. Nếu daily.json có nhiều club, chỉ lấy HVP.
+        // Nếu file chỉ có 1 club nhưng không ghi HVP, sẽ lấy toàn bộ để tránh trắng data.
+        let filtered = records.filter(r => String(r.club || '').trim().toUpperCase() === 'HVP');
+        if (filtered.length === 0) filtered = records;
+
+        const monthSet = new Set();
+        filtered.forEach(r => monthSet.add(r.eom || toMonthEnd(r.date)));
+
+        const months = Array.from(monthSet)
+          .filter(Boolean)
+          .sort();
+
+        if (months.length === 0) {
+          console.warn('daily.json has no valid months. Using fallback HVP_DATA.');
+          return false;
+        }
+
+        const byMonth = {};
+        months.forEach(m => {
+          byMonth[m] = {
+            nms: 0,
+            pt: 0,
+            yi: 0,
+            supplement: 0,
+            retail: 0,
+            califresh: 0,
+            hypoxi: 0,
+            vas: 0,
+            total: 0,
+            ptssPaid: 0,
+            ptssTrial: 0
+          };
+        });
+
+        filtered.forEach(r => {
+          const m = r.eom || toMonthEnd(r.date);
+          if (!byMonth[m]) return;
+
+          const rev = r.revenue || {};
+          const kpi = r.kpi || {};
+
+          byMonth[m].nms += safeNum(rev.nms);
+          byMonth[m].pt += safeNum(rev.pt);
+          byMonth[m].yi += safeNum(rev.yi);
+          byMonth[m].supplement += safeNum(rev.supplement);
+          byMonth[m].retail += safeNum(rev.retail);
+          byMonth[m].califresh += safeNum(rev.califresh);
+          byMonth[m].hypoxi += safeNum(rev.hypoxi);
+          byMonth[m].vas += safeNum(rev.vas);
+          byMonth[m].total += safeNum(rev.total);
+
+          byMonth[m].ptssPaid += safeNum(kpi.ptssPaid);
+          byMonth[m].ptssTrial += safeNum(kpi.ptssTrial);
+        });
+
+        HVP_DATA.months = months;
+
+        const arr = (field) => months.map(m => Math.round(byMonth[m][field]));
+
+        upsertHVPRow('Doanh thu hội viên mới (NMS)', arr('nms'));
+        upsertHVPRow('Doanh thu HLV cá nhân (PT)', arr('pt'));
+        upsertHVPRow('Doanh thu Yoga & Group X (Y&I)', arr('yi'));
+        upsertHVPRow('Doanh thu Supplement', arr('supplement'));
+        upsertHVPRow('Doanh thu Bán lẻ (Retail)', arr('retail'));
+        upsertHVPRow('Doanh thu Califresh', arr('califresh'));
+        upsertHVPRow('Doanh thu Hypoxi', arr('hypoxi'));
+        upsertHVPRow('Doanh thu VAS', arr('vas'));
+        upsertHVPRow('Doanh thu Califresh & Retail', months.map(m => Math.round(byMonth[m].califresh + byMonth[m].retail)));
+        upsertHVPRow('TỔNG DOANH THU (Total Revenue)', arr('total'));
+
+        // Nếu cost/EBITDA chưa có trong daily.json, giữ nguyên fallback cost.
+        rebuildMonthSelectFromHVPData(months[months.length - 1]);
+
+        console.log(`Loaded ${filtered.length} records from ${EXTERNAL_DAILY_JSON_URL}`);
+        return true;
+      } catch (error) {
+        console.warn('Failed to load daily.json. Using fallback HVP_DATA.', error);
+        return false;
+      }
+    }
+
+
+    // Dữ liệu vận hành lấy từ bảng P&L Summary đã cung cấp (Mar/Apr/May 2026)
+    const OPERATING_DATA = {
+      "2026-03-31": {
+        pt: { headcount: 34, ssSold: 8109, ssServe: 4230, utilization: 52, burnPerHC: 123, burnPerHCDay: 4.0, ptPerHC: 3450, avgUsdSSSold: 23.18, avgUsdPTContract: 1352.27 },
+        member: { active: 3795, newJoins: 85, leavers: 83, netMovement: 2, ptActiveClients: 435, ptPenetration: 11 },
+        guest: { totalShow: 258, nmu: 15, closingNmu: 6 },
+        contracts: { pt: 28, ces: 124, kickfit: 23, mix: 21, pilates: 1, monthly: null, physio: null, hpx: null, yi: null, total: 197 }
+      },
+      "2026-04-30": {
+        pt: { headcount: 35, ssSold: 7556, ssServe: 3977, utilization: 53, burnPerHC: 114, burnPerHCDay: 3.8, ptPerHC: 2381, avgUsdSSSold: 23.73, avgUsdPTContract: 826.22 },
+        member: { active: 3813, newJoins: 59, leavers: 72, netMovement: -13, ptActiveClients: 464, ptPenetration: 12 },
+        guest: { totalShow: 192, nmu: 9, closingNmu: 5 },
+        contracts: { pt: 153, ces: 149, kickfit: 20, mix: 5, pilates: 2, monthly: null, physio: null, hpx: null, yi: null, total: 329 }
+      },
+      "2026-05-31": {
+        pt: { headcount: null, ssSold: 6024, ssServe: 3457, utilization: 57, burnPerHC: null, burnPerHCDay: null, ptPerHC: null, avgUsdSSSold: 23.25, avgUsdPTContract: 903.41 },
+        member: { active: 3790, newJoins: 69, leavers: 91, netMovement: -22, ptActiveClients: 459, ptPenetration: 12 },
+        guest: { totalShow: 205, nmu: 55, closingNmu: 27 },
+        contracts: { pt: 85, ces: 28, kickfit: 14, mix: 9, pilates: null, monthly: null, physio: null, hpx: null, yi: null, total: 136 }
+      }
+    };
+
+    function formatNumber(num, suffix = "") {
+      if (num === undefined || num === null || isNaN(num)) return "-";
+      return Number(num).toLocaleString('en-US', { maximumFractionDigits: 2 }) + suffix;
+    }
+
+    // Định dạng tiền tệ chuyên nghiệp
+    function formatUSD(num) {
+      if (num === undefined || isNaN(num)) return "-";
+      const isNeg = num < 0;
+      const absVal = Math.abs(num);
+      return (isNeg ? "-$" : "$") + absVal.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    }
+
+    function formatUSDShort(num) {
+      if (num === undefined || num === null || isNaN(num)) return "-";
+      const isNeg = num < 0;
+      const absVal = Math.abs(num);
+      if (absVal >= 1000000) return (isNeg ? "-$" : "$") + (absVal / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+      return (isNeg ? "-$" : "$") + Math.round(absVal / 1000).toLocaleString('en-US') + "k";
+    }
+
+    function formatDeltaPct(current, base) {
+      if (!base || isNaN(current) || isNaN(base)) return "-";
+      const pct = ((current - base) / Math.abs(base)) * 100;
+      const arrow = pct >= 0 ? "↑" : "↓";
+      return `${arrow} ${Math.abs(pct).toFixed(1)}%`;
+    }
+
+    function getYesterdayLabel() {
+      const d = new Date();
+      d.setDate(d.getDate() - 1);
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    function updateSidebarMTDDate() {
+      const label = `MTD = ${getYesterdayLabel()}`;
+      const desktop = document.getElementById('sidebar-mtd-date');
+      const mobile = document.getElementById('mobile-sidebar-mtd-date');
+      if (desktop) desktop.textContent = label;
+      if (mobile) mobile.textContent = label;
+    }
+
+    // Khai báo các đối tượng Biểu đồ
+    let revTrendChart = null;
+    let expStructureChart = null;
+
+    // Language toggle (VI / EN)
+    let currentLang = localStorage.getItem("hvp_lang") || "vi";
+
+    const I18N_EN = {
+      "Printing / PDF export is disabled for this internal dashboard.": "Printing / PDF export is disabled for this internal dashboard.",
+      "GM Dashboard": "GM Dashboard",
+      "Tổng quan (P&L)": "Overview (P&L)",
+      "Chi tiết doanh thu": "Revenue",
+      "Revenue": "Revenue",
+      "Phân tích Chi phí": "Cost",
+      "Cost": "Cost",
+      "PT & Member KPI": "CC, CS Productivity",
+      "CC, CS Productivity": "CC, CS Productivity",
+      "Diện tích CLB": "Club Area",
+      "Chế độ tối": "Dark mode",
+      "Chế độ sáng": "Light mode",
+      "Báo cáo Tài chính & Vận hành HVP": "HVP Financial & Operating Dashboard",
+      "Dành riêng cho Ban Giám Đốc (GM) • Cập nhật dữ liệu chi phí nhân sự và vận hành cố định": "Designed for General Management • Updated with staffing and fixed operating cost data",
+      "Chọn Kỳ:": "Period:",
+      "Cấu hình Chi phí Đúng mục tiêu": "Target Cost Configuration",
+      "Cơ cấu chi phí bám theo hierarchy P&L:": "Cost structure follows the P&L hierarchy:",
+      "phần không show trực tiếp như Rental và các khoản ngoài phạm vi GM được gom vào": "items not shown directly, such as rental and non-GM scope costs, are grouped into",
+      "Tổng chi phí luôn khớp với": "Total cost always reconciles to",
+      "Tổng doanh thu": "Total Revenue",
+      "Lợi nhuận EBITDA": "EBITDA",
+      "Tổng chi phí (Total Cost)": "Total Cost",
+      "Doanh thu / m² (3.6K m²)": "Revenue / m² (3.6K m²)",
+      "Target:": "Target:",
+      "Biên LN:": "Margin:",
+      "Tỷ trọng/Doanh thu:": "Cost / Revenue:",
+      "Nhân sự:": "Staffing:",
+      "Chi phí / m² (Không thuê):": "Cost / m² (excl. rent):",
+      "Xu hướng Doanh thu thực tế vs Mục tiêu": "Revenue Trend",
+      "Revenue Trend": "Revenue Trend",
+      "Dữ liệu phân mảnh theo dịch vụ NMS & PT qua từng thời kỳ": "Key revenue performance overview: MTD, Target, MoM and YoY",
+      "Key revenue performance overview: MTD, Target, MoM and YoY": "Key revenue performance overview: MTD, Target, MoM and YoY",
+      "Dịch vụ Khác": "Other Services",
+      "Dịch vụ khác": "Other Services",
+      "Mục tiêu": "Target",
+      "Cơ cấu Chi phí GM View": "GM View Cost Structure",
+      "Level 1 theo P&L: Variable, Staffing, Fixed và Unshown Cost": "Level 1 P&L view: Variable, Staffing, Fixed and Unshown Cost",
+      "Phân rã Kết quả Doanh thu theo Sản phẩm": "Revenue Breakdown by Product",
+      "Hạng mục": "Category",
+      "Đạt được (Actual)": "Actual",
+      "Hiệu suất (% Var)": "Performance (% Var)",
+      "PT Efficiency Snapshot": "PT Efficiency Snapshot",
+      "Tình hình bán, phục vụ và hiệu suất sử dụng PT trong kỳ": "PT sales, served sessions and utilization for the period",
+      "PT Headcount": "PT Headcount",
+      "PT Utilization": "PT Utilization",
+      "SS Sold": "SS Sold",
+      "SS Serve": "SS Served",
+      "PT productivity:": "PT productivity:",
+      "SS burn / HC": "SS burn / HC",
+      "Chi tiết Tình hình Chi phí GM (Actual vs Budget)": "GM Cost Breakdown (Actual vs Budget)",
+      "Level 1 bám theo P&L; các dòng không show chi tiết được gom vào Unshown Cost để tổng chi phí khớp 100%": "Level 1 P&L view; lines not shown in detail are grouped into Unshown Cost so total cost reconciles 100%",
+      "Đơn vị: USD ($)": "Unit: USD ($)",
+      "Hạng mục Chi phí": "Cost Item",
+      "Chi thực tế (Actual)": "Actual Cost",
+      "Hạn mức (Budget)": "Budget",
+      "Chênh lệch (Variance)": "Variance",
+      "Trạng thái Kiểm soát": "Control Status",
+      "Efficiency - PT": "PT Efficiency",
+      "Theo dõi năng suất đội ngũ PT: bán session, burn session và utilization": "Track PT productivity: sessions sold, sessions served and utilization",
+      "PT SS Sold": "PT SS Sold",
+      "PT SS Serve": "PT SS Served",
+      "KPI": "KPI",
+      "Unit": "Unit",
+      "Value": "Value",
+      "Member Activity": "Member Activity",
+      "Theo dõi biến động hội viên và mức độ thâm nhập PT": "Track member movement and PT penetration",
+      "Active Members": "Active Members",
+      "New Joins": "New Joins",
+      "Leavers": "Leavers",
+      "Net Movement": "Net Movement",
+      "Guest": "Guest",
+      "Theo dõi traffic, NMU và tỷ lệ closing từ guest thành khách hàng": "Track traffic, NMU and guest-to-member closing rate",
+      "Total SHOW": "Total SHOW",
+      "# Traffic": "# Traffic",
+      "NMU": "NMU",
+      "# Clients": "# Clients",
+      "% Closing NMU": "% Closing NMU",
+      "CS - No. of Contracts": "CS - Number of Contracts",
+      "Số lượng hợp đồng theo nhóm dịch vụ, dùng để theo dõi conversion và product mix": "Number of contracts by service group to track conversion and product mix",
+      "PT Contracts": "PT Contracts",
+      "Kickfit": "Kickfit",
+      "Total": "Total",
+      "Service": "Service",
+      "Group": "Group",
+      "Contracts": "Contracts",
+      "© 2026 Workout Club HVP Plaza (Hùng Vương Plaza). All rights reserved.": "© 2026 Workout Club HVP Plaza (Hung Vuong Plaza). All rights reserved.",
+      "GM Operating Dashboard • Cost / PT Efficiency / Member Activity": "GM Operating Dashboard • Cost / PT Efficiency / Member Activity",
+      "3,613.6 m² • Workout Club": "3,613.6 m² • Workout Club",
+      "Doanh thu hội viên mới (NMS)": "New Membership Sales Revenue (NMS)",
+      "Doanh thu HLV cá nhân (PT)": "Personal Training Revenue (PT)",
+      "Doanh thu Supplement": "Supplement Revenue",
+      "Doanh thu Yoga & Group X (Y&I)": "Yoga & Group X Revenue (Y&I)",
+      "Doanh thu Hypoxi": "Hypoxi Revenue",
+      "Doanh thu VAS": "VAS Revenue",
+      "Doanh thu Califresh & Retail": "Califresh & Retail Revenue",
+      "TỔNG DOANH THU (Total Revenue)": "TOTAL REVENUE",
+      "Chi phí biến đổi theo doanh thu (Total Variable Cost)": "Variable Cost",
+      "Chi phí lương GM shown (Staffing Cost)": "GM Shown Staffing Cost",
+      "Chi phí lương (Total Staffing cost)": "Total Staffing Cost",
+      "Chi phí lương - NMS (Staffing - NMS)": "Staffing - NMS",
+      "Chi phí lương - PT (Staffing - PT)": "Staffing - PT",
+      "Chi phí lương - Hypoxi (Staffing - Hypoxi)": "Staffing - Hypoxi",
+      "Chi phí lương - Califresh (Staffing - CAA)": "Staffing - CAA",
+      "Chi phí lương - Spa (Staffing - Spa)": "Staffing - Spa",
+      "Chi phí lương - Yoga (Staffing - Yoga)": "Staffing - Yoga",
+      "Chi phí lương - GX (Staffing - GX)": "Staffing - GX",
+      "Chi phí lương - CMO (Staffing - CMO)": "Staffing - CMO",
+      "Chi phí cố định (Total Fixed cost)": "Fixed Cost",
+      "Sửa chữa & bảo trì (Repair & maintenance)": "Repair & Maintenance",
+      "Vật tư tiêu hao (Supplies)": "Supplies",
+      "Điện nước & tiện ích (Utilities)": "Utilities",
+      "Chi phí chung khác (Other OH)": "Other OH",
+      "Giặt khăn (Laundry Service)": "Laundry Service",
+      "Bảo vệ (Security)": "Security",
+      "Vệ sinh (Cleaning_Center)": "Cleaning",
+      "Khác thuộc Other OH (Others)": "Other OH - Others",
+      "Chi phí cố định - Thuê (Total Fixed cost-rental)": "Rental Fixed Cost",
+      "TỔNG CHI PHÍ (TOTAL COST)": "TOTAL COST",
+      "LỢI NHUẬN EBITDA": "EBITDA",
+      "Khỏe mạnh": "Healthy",
+      "Trung bình": "Average",
+      "Cảnh báo": "Warning",
+      "Lương": "Staffing",
+      "Kiểm soát tốt": "Controlled",
+      "Vượt hạn mức": "Over Budget",
+      "Gom nhóm": "Grouped",
+      "Show": "Shown",
+      "Show / parent": "Shown / parent",
+      "Shown line": "Shown line",
+      "Reconciled": "Reconciled",
+      "YTD Lũy kế (17T)": "YTD Cumulative (17M)",
+      "Tháng 01/2025 (Act)": "Jan 2025 (Act)",
+      "Tháng 02/2025 (Act)": "Feb 2025 (Act)",
+      "Tháng 03/2025 (Act)": "Mar 2025 (Act)",
+      "Tháng 04/2025 (Act)": "Apr 2025 (Act)",
+      "Tháng 05/2025 (Act)": "May 2025 (Act)",
+      "Tháng 06/2025 (Act)": "Jun 2025 (Act)",
+      "Tháng 07/2025 (Act)": "Jul 2025 (Act)",
+      "Tháng 08/2025 (Act)": "Aug 2025 (Act)",
+      "Tháng 09/2025 (Act)": "Sep 2025 (Act)",
+      "Tháng 10/2025 (Act)": "Oct 2025 (Act)",
+      "Tháng 11/2025 (Act)": "Nov 2025 (Act)",
+      "Tháng 12/2025 (Act)": "Dec 2025 (Act)",
+      "Tháng 01/2026 (Act)": "Jan 2026 (Act)",
+      "Tháng 02/2026 (Act)": "Feb 2026 (Act)",
+      "Tháng 03/2026 (Act)": "Mar 2026 (Act)",
+      "Tháng 04/2026 (Act)": "Apr 2026 (Act)",
+      "Tháng 05/2026 (Flash - incomplete fixed detail)": "May 2026 (Flash - incomplete fixed detail)",
+      "Net Member Movement": "Net Member Movement",
+      "PT Active Clients": "PT Active Clients",
+      "PT Penetration": "PT Penetration",
+      "Avg USD / SS sold": "Avg USD / SS Sold",
+      "Avg USD / PT Contract": "Avg USD / PT Contract",
+      "PT$ per PT Headcount": "PT$ per PT Headcount"
+    };
+
+    const I18N_VI = Object.fromEntries(Object.entries(I18N_EN).map(([vi, en]) => [en, vi]));
+
+    function i18n(text) {
+      if (text === undefined || text === null) return text;
+      const raw = String(text);
+      const hasArrow = raw.startsWith("↳ ");
+      const core = hasArrow ? raw.slice(2) : raw;
+      const translated = currentLang === "en" ? (I18N_EN[core] || core) : (I18N_VI[core] || core);
+      return hasArrow ? "↳ " + translated : translated;
+    }
+
+    function replaceTextPreserveSpace(node, translated) {
+      const original = node.nodeValue;
+      const leading = original.match(/^\s*/)[0];
+      const trailing = original.match(/\s*$/)[0];
+      node.nodeValue = leading + translated + trailing;
+    }
+
+    function applyTextNodeLanguage(root = document.body) {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          const trimmed = node.nodeValue.trim();
+          if (!trimmed) return NodeFilter.FILTER_REJECT;
+          if (node.parentElement && ['SCRIPT', 'STYLE', 'OPTION'].includes(node.parentElement.tagName)) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach(node => {
+        const trimmed = node.nodeValue.trim();
+        const translated = currentLang === "en" ? I18N_EN[trimmed] : I18N_VI[trimmed];
+        if (translated) replaceTextPreserveSpace(node, translated);
+      });
+    }
+
+    function updatePeriodOptionsLanguage() {
+      const select = document.getElementById('month-select');
+      if (!select) return;
+      Array.from(select.options).forEach(opt => {
+        const viLabel = opt.getAttribute('data-vi-label') || opt.textContent.trim();
+        opt.setAttribute('data-vi-label', viLabel);
+        opt.textContent = currentLang === 'en' ? (I18N_EN[viLabel] || viLabel) : viLabel;
+      });
+    }
+
+    function updateChartLanguage() {
+      if (revTrendChart) {
+        revTrendChart.data.datasets[0].label = i18n("Revenue");
+        revTrendChart.update();
+      }
+      if (expStructureChart) {
+        expStructureChart.data.labels = [i18n("Variable Cost"), i18n("Staffing Cost"), i18n("Fixed Cost"), i18n("Unshown Cost")];
+        expStructureChart.update();
+      }
+    }
+
+    function setLanguage(lang, shouldRefresh = true) {
+      currentLang = lang === 'en' ? 'en' : 'vi';
+      localStorage.setItem("hvp_lang", currentLang);
+      document.documentElement.lang = currentLang;
+      const btn = document.getElementById('lang-toggle');
+      if (btn) btn.textContent = currentLang === 'en' ? '🇺🇸 EN' : '🇻🇳 VI';
+      updatePeriodOptionsLanguage();
+      applyTextNodeLanguage();
+      updateChartLanguage();
+      if (shouldRefresh) {
+        const selected = document.getElementById("month-select")?.value || "2026-04-30";
+        updateDashboard(selected);
+        applyTextNodeLanguage();
+        updateChartLanguage();
+      }
+    }
+
+    function initLanguageToggle() {
+      const btn = document.getElementById('lang-toggle');
+      if (btn) {
+        btn.addEventListener('click', () => setLanguage(currentLang === 'vi' ? 'en' : 'vi'));
+      }
+      setLanguage(currentLang, false);
+    }
+
+    // Cấu hình cost structure theo hierarchy P&L.
+    // Level 1 show: Variable Cost, Staffing Cost, Fixed Cost.
+    // Rental và các phần không show trực tiếp được gom vào Unshown Cost để TOTAL COST luôn khớp P&L.
+    const COST_TOTAL_LINES = {
+      variable: "Chi phí biến đổi theo doanh thu (Total Variable Cost)",
+      staffing: "Chi phí lương (Total Staffing cost)",
+      fixed: "Chi phí cố định (Total Fixed cost)",
+      rental: "Chi phí cố định - Thuê (Total Fixed cost-rental)",
+      total: "TỔNG CHI PHÍ (TOTAL COST)"
+    };
+
+    const STAFFING_SHOWN_LINES = [
+      { name: "Chi phí lương - NMS (Staffing - NMS)", key: "Staffing - NMS" },
+      { name: "Chi phí lương - PT (Staffing - PT)", key: "Staffing - PT" },
+      { name: "Chi phí lương - Hypoxi (Staffing - Hypoxi)", key: "Staffing - Hypoxi" },
+      { name: "Chi phí lương - Califresh (Staffing - CAA)", key: "Staffing - CAA" },
+      { name: "Chi phí lương - Spa (Staffing - Spa)", key: "Staffing - Spa" },
+      { name: "Chi phí lương - Yoga (Staffing - Yoga)", key: "Staffing - Yoga" },
+      { name: "Chi phí lương - GX (Staffing - GX)", key: "Staffing - GX" },
+      { name: "Chi phí lương - CMO (Staffing - CMO)", key: "Staffing - CMO" }
+    ];
+
+    const FIXED_SHOWN_LINES = [
+      { name: "Sửa chữa & bảo trì (Repair & maintenance)", key: "Repair & maintenance" },
+      { name: "Vật tư tiêu hao (Supplies)", key: "Supplies" },
+      { name: "Điện nước & tiện ích (Utilities)", key: "Utilities" },
+      { name: "Chi phí chung khác (Other OH)", key: "Other OH", isParent: true },
+      { name: "Giặt khăn (Laundry Service)", key: "Laundry Service", indent: true },
+      { name: "Bảo vệ (Security)", key: "Security", indent: true },
+      { name: "Vệ sinh (Cleaning_Center)", key: "Cleaning_Center", indent: true },
+      { name: "Khác thuộc Other OH (Others)", key: "Other OH Others", indent: true }
+    ];
+
+    const UNSHOWN_DETAIL_LINES = [
+      { name: "Chi phí cố định - Thuê (Total Fixed cost-rental)", key: "Rental" }
+    ];
+
+    function getCostLineValue(lineName, idx, isYTD) {
+      const rowObj = HVP_DATA.rows.find(r => r.name === lineName);
+      if (!rowObj) return 0;
+      return isYTD ? rowObj.values.reduce((a, b) => a + b, 0) : rowObj.values[idx];
+    }
+
+    function getCostLineBudget(costKey, isYTD) {
+      const baseTarget = HVP_DATA.targets[costKey] || 0;
+      return isYTD ? baseTarget * HVP_DATA.months.length : baseTarget;
+    }
+
+    function sumAbsLines(lines, idx, isYTD) {
+      return lines.reduce((sum, line) => sum + Math.abs(getCostLineValue(line.name, idx, isYTD)), 0);
+    }
+
+    function getPLCostSummary(idx, isYTD) {
+      const variable = Math.abs(getCostLineValue(COST_TOTAL_LINES.variable, idx, isYTD));
+      const totalStaffingPL = Math.abs(getCostLineValue(COST_TOTAL_LINES.staffing, idx, isYTD));
+      const fixed = Math.abs(getCostLineValue(COST_TOTAL_LINES.fixed, idx, isYTD));
+      const rental = Math.abs(getCostLineValue(COST_TOTAL_LINES.rental, idx, isYTD));
+      const total = Math.abs(getCostLineValue(COST_TOTAL_LINES.total, idx, isYTD));
+
+      // GM-view rule: only show the approved staffing lines. All non-shown staffing,
+      // rental, and any remaining hidden cost are aggregated into one single Unshown Cost row.
+      const shownStaffing = sumAbsLines(STAFFING_SHOWN_LINES, idx, isYTD);
+      const unshown = Math.max(total - variable - shownStaffing - fixed, 0);
+      const rounding = total - (variable + shownStaffing + fixed + unshown);
+
+      return {
+        variable,
+        staffing: shownStaffing,
+        totalStaffingPL,
+        fixed,
+        rental,
+        total,
+        shownStaffing,
+        unshown,
+        rounding
+      };
+    }
+
+    // Lọc dữ liệu theo tháng hoặc theo Lũy kế YTD
+    function updateDashboard(selectedPeriod) {
+      let isYTD = selectedPeriod === "YTD";
+      
+      // Tính toán các chỉ số cho cards
+      let totalRev = 0, targetRev = 0;
+      let ebitda = 0;
+      let totalCost = 0, targetTotalCost = 0;
+      let totalStaffing = 0, totalFixed = 0;
+      let sizeM2 = 3613.6;
+
+      // Tìm vị trí của tháng trong chuỗi dữ liệu
+      let mIdx = HVP_DATA.months.indexOf(selectedPeriod);
+
+      if (isYTD) {
+        // Lũy kế toàn bộ 17 tháng
+        HVP_DATA.rows.forEach(row => {
+          let sum = row.values.reduce((a, b) => a + b, 0);
+          if (row.name === "TỔNG DOANH THU (Total Revenue)") totalRev = sum;
+          if (row.name === "LỢI NHUẬN EBITDA") ebitda = sum;
+          if (row.name === "TỔNG CHI PHÍ (TOTAL COST)") totalCost = sum;
+          
+          // Tính tổng Staffing theo dòng tổng P&L, không cộng trùng các dòng con
+          if (row.name === "Chi phí lương (Total Staffing cost)") totalStaffing = sum;
+          // Tính tổng nhóm Fixed Cost
+          if (row.name === "Chi phí cố định (Total Fixed cost)") totalFixed = sum;
+        });
+        targetRev = HVP_DATA.targets["Total Revenue"] * HVP_DATA.months.length;
+        targetTotalCost = HVP_DATA.targets["TOTAL COST"] * HVP_DATA.months.length;
+      } else if (mIdx !== -1) {
+        // Lấy số liệu của tháng được chọn
+        HVP_DATA.rows.forEach(row => {
+          let val = row.values[mIdx];
+          if (row.name === "TỔNG DOANH THU (Total Revenue)") totalRev = val;
+          if (row.name === "LỢI NHUẬN EBITDA") ebitda = val;
+          if (row.name === "TỔNG CHI PHÍ (TOTAL COST)") totalCost = val;
+          
+          if (row.name === "Chi phí lương (Total Staffing cost)") totalStaffing = val;
+          if (row.name === "Chi phí cố định (Total Fixed cost)") totalFixed = val;
+        });
+        targetRev = HVP_DATA.targets["Total Revenue"];
+        targetTotalCost = HVP_DATA.targets["TOTAL COST"];
+      }
+
+      // 1. Cập nhật dữ liệu cho các Scorecards
+      document.getElementById("card-rev-value").innerText = formatUSD(totalRev);
+      document.getElementById("card-rev-target").innerText = formatUSD(targetRev);
+      
+      let revPerf = (totalRev / targetRev) * 100;
+      let perfBadge = document.getElementById("card-rev-perf");
+      perfBadge.innerText = revPerf.toFixed(1) + (currentLang === "en" ? "% achieved" : "% đạt");
+      if (revPerf >= 95) {
+        perfBadge.className = "px-2.5 py-1 rounded-full font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center gap-1";
+      } else if (revPerf >= 85) {
+        perfBadge.className = "px-2.5 py-1 rounded-full font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center gap-1";
+      } else {
+        perfBadge.className = "px-2.5 py-1 rounded-full font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center gap-1";
+      }
+
+      // EBITDA
+      document.getElementById("card-ebitda-value").innerText = formatUSD(ebitda);
+      let ebitdaMargin = totalRev > 0 ? (ebitda / totalRev) * 100 : 0;
+      document.getElementById("card-ebitda-margin").innerText = ebitdaMargin.toFixed(1) + "%";
+      
+      let ebitdaBadge = document.getElementById("card-ebitda-status");
+      if (ebitdaMargin >= 25) {
+        ebitdaBadge.innerText = i18n("Khỏe mạnh");
+        ebitdaBadge.className = "px-2.5 py-1 rounded-full font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400";
+      } else if (ebitdaMargin >= 15) {
+        ebitdaBadge.innerText = i18n("Trung bình");
+        ebitdaBadge.className = "px-2.5 py-1 rounded-full font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400";
+      } else {
+        ebitdaBadge.innerText = i18n("Cảnh báo");
+        ebitdaBadge.className = "px-2.5 py-1 rounded-full font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400";
+      }
+
+      // Card 3: TỔNG CHI PHÍ (TOTAL COST)
+      document.getElementById("card-opex-value").innerText = formatUSD(Math.abs(totalCost));
+      let opexRatio = totalRev > 0 ? (Math.abs(totalCost) / totalRev) * 100 : 0;
+      document.getElementById("card-opex-ratio").innerText = opexRatio.toFixed(0) + "%";
+      document.getElementById("card-opex-staff").innerHTML = `${i18n("Lương")}: <strong class="text-slate-700 dark:text-slate-200">${formatUSD(Math.abs(totalStaffing))}</strong>`;
+
+      // Card 4: Metrics per SQM (Doanh thu & Chi phí trên m2)
+      let sqmRevValue = totalRev / sizeM2;
+      document.getElementById("card-sqm-rev").innerText = formatUSD(sqmRevValue) + "/m²";
+      
+      let sqmCostValue = Math.abs(totalCost) / sizeM2;
+      document.getElementById("card-sqm-cost").innerText = formatUSD(sqmCostValue) + "/m²";
+
+      // 2. Cập nhật biểu đồ Revenue 4 cột: MTD, Target, MoM, YoY
+      updateRevenueComparisonChart(selectedPeriod, mIdx, isYTD, totalRev, targetRev);
+
+      // 3. Cập nhật biểu đồ cấu trúc chi phí theo P&L hierarchy
+      const costSummary = getPLCostSummary(mIdx, isYTD);
+      let totalCostSum = costSummary.total || Math.abs(totalCost);
+
+      let variablePct = totalCostSum > 0 ? (costSummary.variable / totalCostSum * 100) : 0;
+      let staffPct = totalCostSum > 0 ? (costSummary.staffing / totalCostSum * 100) : 0;
+      let fixedPct = totalCostSum > 0 ? (costSummary.fixed / totalCostSum * 100) : 0;
+      let unshownPct = totalCostSum > 0 ? (costSummary.unshown / totalCostSum * 100) : 0;
+
+      document.getElementById("exp-variable-pct").innerText = variablePct.toFixed(1) + "%";
+      document.getElementById("exp-staff-pct").innerText = staffPct.toFixed(1) + "%";
+      document.getElementById("exp-fixed-pct").innerText = fixedPct.toFixed(1) + "%";
+      document.getElementById("exp-unshown-pct").innerText = unshownPct.toFixed(1) + "%";
+
+      updateExpenseChart([costSummary.variable, costSummary.staffing, costSummary.fixed, costSummary.unshown]);
+
+      // 3. Cập nhật Bảng Phân rã Doanh thu Sản phẩm (Product Breakdown)
+      updateProductBreakdown(mIdx, isYTD);
+
+      // 4. Cập nhật PT Efficiency & Member Activity
+      updateOperatingKPIs(selectedPeriod);
+
+      // 5. Cập nhật Bảng Chi phí thực tế GM mới nhất (Cost Items table)
+      updateCostBreakdownTable(mIdx, isYTD);
+    }
+
+    // Vẽ & Cập nhật Biểu đồ cấu trúc chi phí (Nhân sự vs Cố định)
+    function updateExpenseChart(dataValues) {
+      if (expStructureChart) {
+        expStructureChart.data.datasets[0].data = dataValues;
+        expStructureChart.update();
+      } else {
+        const ctx = document.getElementById('expenseStructureChart').getContext('2d');
+        const isDark = document.documentElement.classList.contains('dark');
+        
+        expStructureChart = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: [i18n('Variable Cost'), i18n('Staffing Cost'), i18n('Fixed Cost'), i18n('Unshown Cost')],
+            datasets: [{
+              data: dataValues,
+              backgroundColor: ['#0ea5e9', '#f43f5e', '#f59e0b', '#94a3b8'],
+              borderWidth: isDark ? 2 : 1,
+              borderColor: isDark ? '#0f172a' : '#ffffff'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    let val = context.raw;
+                    return ' ' + context.label + ': ' + formatUSD(val);
+                  }
+                }
+              }
+            },
+            cutout: '75%'
+          }
+        });
+      }
+    }
+
+    // Cập nhật Bảng phân rã các hạng mục Doanh thu sản phẩm
+    function updateProductBreakdown(idx, isYTD) {
+      const tbody = document.getElementById("product-breakdown-body");
+      tbody.innerHTML = "";
+
+      const productCategories = [
+        { name: "Doanh thu hội viên mới (NMS)", key: "NMS" },
+        { name: "Doanh thu HLV cá nhân (PT)", key: "PT" },
+        { name: "Doanh thu Supplement", key: "Supplement" },
+        { name: "Doanh thu Yoga & Group X (Y&I)", key: "Y&I" },
+        { name: "Doanh thu Hypoxi", key: "Hypoxi" },
+        { name: "Doanh thu VAS", key: "VAS" },
+        { name: "Doanh thu Califresh & Retail", key: "Retail" }
+      ];
+
+      productCategories.forEach(prod => {
+        let actualVal = 0;
+        let rowObj = HVP_DATA.rows.find(r => r.name === prod.name);
+        
+        if (rowObj) {
+          actualVal = isYTD ? rowObj.values.reduce((a, b) => a + b, 0) : rowObj.values[idx];
+        }
+
+        let baseTarget = HVP_DATA.targets[prod.key] || 0;
+        let targetVal = isYTD ? baseTarget * HVP_DATA.months.length : baseTarget;
+        
+        let achievement = targetVal > 0 ? (actualVal / targetVal) * 100 : 100;
+        let colorClass = "text-rose-500";
+        if (achievement >= 95) colorClass = "text-emerald-500";
+        else if (achievement >= 80) colorClass = "text-amber-500";
+
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50/55 dark:hover:bg-slate-900/40 transition-colors">
+            <td class="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">${i18n(prod.name)}</td>
+            <td class="px-4 py-3 text-right font-bold">${formatUSD(actualVal)}</td>
+            <td class="px-4 py-3 text-right text-slate-400">${formatUSD(targetVal)}</td>
+            <td class="px-4 py-3 text-right font-extrabold ${colorClass}">${achievement.toFixed(1)}%</td>
+          </tr>
+        `;
+      });
+    }
+
+    // Cập nhật bảng phân tích chi phí theo P&L hierarchy + drill-down shown/unshown
+    function updateCostBreakdownTable(idx, isYTD) {
+      const tbody = document.getElementById("cost-breakdown-body");
+      tbody.innerHTML = "";
+
+      const summary = getPLCostSummary(idx, isYTD);
+      const rows = [];
+
+      rows.push({ name: "Chi phí biến đổi theo doanh thu (Total Variable Cost)", actual: summary.variable, group: "Variable", level: 0, status: "Show" });
+
+      rows.push({ name: "Chi phí lương GM shown (Staffing Cost)", actual: summary.staffing, group: "Staffing_Total", level: 0, status: "Show" });
+      STAFFING_SHOWN_LINES.forEach(line => rows.push({
+        name: line.name,
+        actual: Math.abs(getCostLineValue(line.name, idx, isYTD)),
+        key: line.key,
+        group: "Staffing",
+        level: 1,
+        status: "Shown line"
+      }));
+
+      rows.push({ name: "Chi phí cố định (Total Fixed cost)", actual: summary.fixed, group: "Fixed_Total", level: 0, status: "Show" });
+      FIXED_SHOWN_LINES.forEach(line => rows.push({
+        name: line.name,
+        actual: Math.abs(getCostLineValue(line.name, idx, isYTD)),
+        key: line.key,
+        group: line.isParent ? "OtherOH_Total" : "Fixed",
+        level: line.indent ? 2 : 1,
+        status: line.isParent ? "Show / parent" : "Shown line"
+      }));
+
+      rows.push({ name: "Unshown Cost", actual: summary.unshown, group: "Unshown_Total", level: 0, status: "Gom nhóm" });
+      rows.push({ name: "TỔNG CHI PHÍ (TOTAL COST)", actual: summary.total, group: "Grand_Total", level: 0, status: "Reconciled" });
+
+      rows.forEach(cost => {
+        const absActual = cost.actual || 0;
+        const absBudget = cost.key ? Math.abs(getCostLineBudget(cost.key, isYTD)) : 0;
+        const variance = absBudget - absActual;
+        const varPercent = absBudget > 0 ? (absActual / absBudget * 100) : 0;
+        const varianceDisplay = absBudget > 0 ? `${variance >= 0 ? '+' : ''}${formatUSD(variance)} (${varPercent.toFixed(0)}%)` : "-";
+
+        let badgeClass = "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
+        let statusText = cost.status || "Show";
+        if (cost.group === "Grand_Total") {
+          badgeClass = "bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300";
+        } else if (cost.group === "Unshown" || cost.group === "Unshown_Total") {
+          badgeClass = "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
+        } else if (absBudget > 0 && absActual <= absBudget) {
+          badgeClass = "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400";
+          statusText = "Kiểm soát tốt";
+        } else if (absBudget > 0 && absActual > absBudget) {
+          badgeClass = "bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400";
+          statusText = "Vượt hạn mức";
+        }
+
+        statusText = i18n(statusText);
+        const isTotal = ["Variable", "Staffing_Total", "Fixed_Total", "Unshown_Total", "Grand_Total", "OtherOH_Total"].includes(cost.group);
+        const textWeightClass = isTotal ? "font-bold text-slate-900 dark:text-white" : "text-slate-700 dark:text-slate-300";
+        const bgRowClass = isTotal ? "bg-slate-50 dark:bg-slate-900/40" : "hover:bg-slate-50/40";
+        const indentClass = cost.level === 2 ? "pl-12 text-slate-500 dark:text-slate-400" : cost.level === 1 ? "pl-6 text-slate-600 dark:text-slate-400" : "";
+        const prefix = cost.level === 2 ? "↳ " : cost.level === 1 ? "↳ " : "";
+        const nameDisplay = `<span class="${indentClass}">${prefix}${i18n(cost.name)}</span>`;
+
+        tbody.innerHTML += `
+          <tr class="${bgRowClass} transition-colors">
+            <td class="px-4 py-3 font-semibold ${textWeightClass}">${nameDisplay}</td>
+            <td class="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">${formatUSD(absActual)}</td>
+            <td class="px-4 py-3 text-right text-slate-400">${absBudget > 0 ? formatUSD(absBudget) : '-'}</td>
+            <td class="px-4 py-3 text-right font-medium ${variance >= 0 ? 'text-emerald-500' : 'text-rose-500'}">
+              ${varianceDisplay}
+            </td>
+            <td class="px-4 py-3 text-right">
+              <span class="px-2 py-1 rounded-lg text-xs font-bold ${badgeClass}">${statusText}</span>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    // Cập nhật PT Efficiency & Member Activity
+    function updateOperatingKPIs(selectedPeriod) {
+      const data = OPERATING_DATA[selectedPeriod] || OPERATING_DATA["2026-04-30"];
+      const pt = data.pt;
+      const mem = data.member;
+      const guest = data.guest || OPERATING_DATA["2026-04-30"].guest;
+      const contracts = data.contracts || OPERATING_DATA["2026-04-30"].contracts;
+
+      const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = value;
+      };
+
+      setText("pt-snap-headcount", formatNumber(pt.headcount));
+      setText("pt-snap-util", formatNumber(pt.utilization, "%"));
+      setText("pt-snap-sold", formatNumber(pt.ssSold));
+      setText("pt-snap-serve", formatNumber(pt.ssServe));
+      setText("pt-snap-burn-hc", formatNumber(pt.burnPerHC));
+
+      setText("pt-kpi-headcount", formatNumber(pt.headcount));
+      setText("pt-kpi-sold", formatNumber(pt.ssSold));
+      setText("pt-kpi-serve", formatNumber(pt.ssServe));
+      setText("pt-kpi-util", formatNumber(pt.utilization, "%"));
+
+      setText("mem-kpi-active", formatNumber(mem.active));
+      setText("mem-kpi-new", formatNumber(mem.newJoins));
+      setText("mem-kpi-leavers", formatNumber(mem.leavers));
+      setText("mem-kpi-net", (mem.netMovement > 0 ? "+" : "") + formatNumber(mem.netMovement));
+
+      const ptRows = [
+        ["PT Headcount", "# HC", formatNumber(pt.headcount)],
+        ["PT SS Sold", "#SS sold", formatNumber(pt.ssSold)],
+        ["PT SS Serve", "SS burn", formatNumber(pt.ssServe)],
+        ["PT Utilization", "%", formatNumber(pt.utilization, "%")],
+        ["SS burn / HC", "#SS", formatNumber(pt.burnPerHC)],
+        ["SS burn / HC / day", "#SS/HC", formatNumber(pt.burnPerHCDay)],
+        ["PT$ per PT Headcount", "US$/HC", pt.ptPerHC == null ? "-" : formatUSD(pt.ptPerHC)],
+        ["Avg USD / SS sold", "US$/SS Sold", pt.avgUsdSSSold == null ? "-" : formatUSD(pt.avgUsdSSSold)],
+        ["Avg USD / PT Contract", "US$/PT Contract", pt.avgUsdPTContract == null ? "-" : formatUSD(pt.avgUsdPTContract)]
+      ];
+      const ptBody = document.getElementById("pt-efficiency-body");
+      if (ptBody) {
+        ptBody.innerHTML = ptRows.map(r => `
+          <tr class="hover:bg-slate-50/60 dark:hover:bg-slate-900/40 transition-colors">
+            <td class="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">${i18n(r[0])}</td>
+            <td class="px-4 py-3 text-slate-400">${i18n(r[1])}</td>
+            <td class="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">${r[2]}</td>
+          </tr>
+        `).join("");
+      }
+
+      const memRows = [
+        ["Active Members", "# Clients", formatNumber(mem.active)],
+        ["New Joins", "# Clients", formatNumber(mem.newJoins)],
+        ["Leavers", "# Clients", formatNumber(mem.leavers)],
+        ["Net Member Movement", "# Clients", (mem.netMovement > 0 ? "+" : "") + formatNumber(mem.netMovement)],
+        ["PT Active Clients", "# Clients", formatNumber(mem.ptActiveClients)],
+        ["PT Penetration", "%", formatNumber(mem.ptPenetration, "%")]
+      ];
+      const memBody = document.getElementById("member-activity-body");
+      if (memBody) {
+        memBody.innerHTML = memRows.map(r => `
+          <tr class="hover:bg-slate-50/60 dark:hover:bg-slate-900/40 transition-colors">
+            <td class="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">${i18n(r[0])}</td>
+            <td class="px-4 py-3 text-slate-400">${i18n(r[1])}</td>
+            <td class="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">${r[2]}</td>
+          </tr>
+        `).join("");
+      }
+
+      setText("guest-kpi-show", formatNumber(guest.totalShow));
+      setText("guest-kpi-nmu", formatNumber(guest.nmu));
+      setText("guest-kpi-closing", formatNumber(guest.closingNmu, "%"));
+
+      const guestRows = [
+        ["Total SHOW", "# Traffic", formatNumber(guest.totalShow)],
+        ["NMU", "# Clients", formatNumber(guest.nmu)],
+        ["% Closing NMU", "%", formatNumber(guest.closingNmu, "%")]
+      ];
+      const guestBody = document.getElementById("guest-body");
+      if (guestBody) {
+        guestBody.innerHTML = guestRows.map(r => `
+          <tr class="hover:bg-slate-50/60 dark:hover:bg-slate-900/40 transition-colors">
+            <td class="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">${i18n(r[0])}</td>
+            <td class="px-4 py-3 text-slate-400">${i18n(r[1])}</td>
+            <td class="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">${r[2]}</td>
+          </tr>
+        `).join("");
+      }
+
+      setText("contract-kpi-pt", formatNumber(contracts.pt));
+      setText("contract-kpi-ces", formatNumber(contracts.ces));
+      setText("contract-kpi-kickfit", formatNumber(contracts.kickfit));
+      setText("contract-kpi-total", formatNumber(contracts.total));
+
+      const contractRows = [
+        ["PT", "PT", formatNumber(contracts.pt)],
+        ["CES", "PT", formatNumber(contracts.ces)],
+        ["Kickfit", "PT", formatNumber(contracts.kickfit)],
+        ["Mix", "PT", formatNumber(contracts.mix)],
+        ["Pilates", "PT", formatNumber(contracts.pilates)],
+        ["Monthly", "PT", formatNumber(contracts.monthly)],
+        ["Physio", "PT", formatNumber(contracts.physio)],
+        ["HPX", "Hypoxi", formatNumber(contracts.hpx)],
+        ["YI", "YI", formatNumber(contracts.yi)],
+        ["Total", "", formatNumber(contracts.total)]
+      ];
+      const contractsBody = document.getElementById("contracts-body");
+      if (contractsBody) {
+        contractsBody.innerHTML = contractRows.map(r => `
+          <tr class="${r[0] === 'Total' ? 'bg-slate-50 dark:bg-slate-900/40 font-bold' : 'hover:bg-slate-50/60 dark:hover:bg-slate-900/40'} transition-colors">
+            <td class="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">${i18n(r[0])}</td>
+            <td class="px-4 py-3 text-slate-400">${i18n(r[1])}</td>
+            <td class="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">${r[2]}</td>
+          </tr>
+        `).join("");
+      }
+    }
+
+    // Cập nhật các thông số quản trị nhân viên
+    function updateHeadcountMetrics(idx, isYTD, totalRevenue) {
+      let salesHC = 0;
+      let ptHC = 0;
+
+      if (isYTD) {
+        salesHC = HVP_DATA.headcount.sales.reduce((a, b) => a + b, 0) / HVP_DATA.headcount.sales.length;
+        ptHC = HVP_DATA.headcount.pt.reduce((a, b) => a + b, 0) / HVP_DATA.headcount.pt.length;
+      } else {
+        salesHC = HVP_DATA.headcount.sales[idx];
+        ptHC = HVP_DATA.headcount.pt[idx];
+      }
+
+      let totalHC = salesHC + ptHC;
+      document.getElementById("hc-total").innerText = totalHC.toFixed(2) + " FTE";
+      document.getElementById("hc-sales-val").innerText = salesHC.toFixed(2) + " FTE";
+      document.getElementById("hc-pt-val").innerText = ptHC.toFixed(2) + " FTE";
+
+      let totalSum = salesHC + ptHC;
+      if (totalSum > 0) {
+        document.getElementById("hc-sales-bar").style.width = (salesHC / totalSum * 100) + "%";
+        document.getElementById("hc-pt-bar").style.width = (ptHC / totalSum * 100) + "%";
+      }
+
+      let revPerStaff = totalHC > 0 ? (totalRevenue / totalHC) : 0;
+      document.getElementById("hc-rev-per-staff").innerText = formatUSD(revPerStaff);
+    }
+
+    // Thiết lập biểu đồ xu hướng doanh thu dòng qua các tháng
+    function getRevenueValueByIndex(idx) {
+      const row = HVP_DATA.rows.find(r => r.name === "TỔNG DOANH THU (Total Revenue)");
+      if (!row || idx < 0 || idx >= row.values.length) return null;
+      return row.values[idx];
+    }
+
+    function getMonthShortLabel(period) {
+      if (!period || period === "YTD") return "YTD";
+      const d = new Date(period + "T00:00:00");
+      return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', '/');
+    }
+
+    function setDeltaElement(id, text, isPositive) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = text;
+      el.className = "text-xs mt-1 " + (isPositive ? "text-emerald-600 dark:text-emerald-400 font-bold" : "text-rose-600 dark:text-rose-400 font-bold");
+    }
+
+    function updateRevenueComparisonChart(selectedPeriod, idx, isYTD, totalRev, targetRev) {
+      if (!revTrendChart) return;
+
+      let momBase = null;
+      let yoyBase = null;
+      let momLabel = "previous month";
+      let yoyLabel = "last year";
+
+      if (isYTD) {
+        momBase = targetRev;
+        yoyBase = HVP_DATA.rows.find(r => r.name === "TỔNG DOANH THU (Total Revenue)").values.slice(0, 12).reduce((a, b) => a + b, 0);
+        momLabel = "Target";
+        yoyLabel = "YTD 2025";
+      } else {
+        momBase = getRevenueValueByIndex(idx - 1) || 0;
+        yoyBase = getRevenueValueByIndex(idx - 12) || 0;
+        momLabel = idx > 0 ? getMonthShortLabel(HVP_DATA.months[idx - 1]) : "previous month";
+        yoyLabel = idx >= 12 ? getMonthShortLabel(HVP_DATA.months[idx - 12]) : "last year";
+      }
+
+      const vsTargetPct = targetRev ? ((totalRev - targetRev) / Math.abs(targetRev)) * 100 : 0;
+      const momPct = momBase ? ((totalRev - momBase) / Math.abs(momBase)) * 100 : 0;
+      const yoyPct = yoyBase ? ((totalRev - yoyBase) / Math.abs(yoyBase)) * 100 : 0;
+
+      const values = [totalRev, targetRev, momBase || 0, yoyBase || 0];
+      const labels = [
+        ['MTD', 'vs Target', `${vsTargetPct >= 0 ? '↑' : '↓'} ${Math.abs(vsTargetPct).toFixed(1)}%`],
+        ['Target', 'Monthly Target', ''],
+        ['MoM', `vs ${momLabel}`, momBase ? `${momPct >= 0 ? '↑' : '↓'} ${Math.abs(momPct).toFixed(1)}%` : '-'],
+        ['YoY', `vs ${yoyLabel}`, yoyBase ? `${yoyPct >= 0 ? '↑' : '↓'} ${Math.abs(yoyPct).toFixed(1)}%` : '-']
+      ];
+
+      document.getElementById('rev4-mtd-value').textContent = formatUSDShort(totalRev);
+      document.getElementById('rev4-target-value').textContent = formatUSDShort(targetRev);
+      document.getElementById('rev4-mom-value').textContent = formatUSDShort(momBase);
+      document.getElementById('rev4-yoy-value').textContent = formatUSDShort(yoyBase);
+      setDeltaElement('rev4-mtd-sub', `vs Target ${vsTargetPct >= 0 ? '↑' : '↓'} ${Math.abs(vsTargetPct).toFixed(1)}%`, vsTargetPct >= 0);
+      setDeltaElement('rev4-mom-sub', `${momBase ? `vs ${momLabel} ${momPct >= 0 ? '↑' : '↓'} ${Math.abs(momPct).toFixed(1)}%` : `vs ${momLabel} -`}`, momPct >= 0);
+      setDeltaElement('rev4-yoy-sub', `${yoyBase ? `vs ${yoyLabel} ${yoyPct >= 0 ? '↑' : '↓'} ${Math.abs(yoyPct).toFixed(1)}%` : `vs ${yoyLabel} -`}`, yoyPct >= 0);
+
+      revTrendChart.data.labels = labels;
+      revTrendChart.data.datasets[0].data = values;
+      revTrendChart.update();
+    }
+
+    // Thiết lập biểu đồ Revenue 4 cột: MTD, Target, MoM, YoY
+    function initRevenueTrendChart() {
+      const ctx = document.getElementById('revenueTrendChart').getContext('2d');
+      const isDark = document.documentElement.classList.contains('dark');
+
+      const valueLabelPlugin = {
+        id: 'valueLabelPlugin',
+        afterDatasetsDraw(chart) {
+          const { ctx } = chart;
+          ctx.save();
+          ctx.font = '700 12px Plus Jakarta Sans, Arial';
+          ctx.fillStyle = document.documentElement.classList.contains('dark') ? '#e2e8f0' : '#0f172a';
+          ctx.textAlign = 'center';
+          chart.getDatasetMeta(0).data.forEach((bar, index) => {
+            const value = chart.data.datasets[0].data[index];
+            ctx.fillText(formatUSDShort(value), bar.x, bar.y - 10);
+          });
+          ctx.restore();
+        }
+      };
+
+      revTrendChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: [['MTD'], ['Target'], ['MoM'], ['YoY']],
+          datasets: [{
+            label: i18n('Revenue'),
+            data: [0, 0, 0, 0],
+            backgroundColor: ['#0ea5e9', '#14b8a6', '#f59e0b', '#8b5cf6'],
+            borderRadius: 8,
+            borderSkipped: false,
+            maxBarThickness: 120
+          }]
+        },
+        plugins: [valueLabelPlugin],
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: {
+                color: isDark ? '#94a3b8' : '#475569',
+                font: { size: 12, weight: '700' }
+              }
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: isDark ? '#334155' : '#e2e8f0', borderDash: [4, 4] },
+              ticks: {
+                color: isDark ? '#94a3b8' : '#64748b',
+                callback: function(value) { return '$' + Math.round(value / 1000) + 'k'; }
+              }
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return ' ' + context.dataset.label + ': ' + formatUSD(context.raw);
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Đổ dữ liệu vào bảng P&L GM Toàn diện theo đúng GM-view.
+    // Các dòng không show được gom về duy nhất một dòng Unshown Cost.
+    function buildGMPLRows() {
+      const monthsCount = HVP_DATA.months.length;
+      const getRowValues = (rowName) => {
+        const row = HVP_DATA.rows.find(r => r.name === rowName);
+        return row ? row.values.map(v => Math.abs(v)) : Array(monthsCount).fill(0);
+      };
+      const sumValueRows = (lineDefs) => {
+        const sums = Array(monthsCount).fill(0);
+        lineDefs.forEach(line => {
+          const vals = getRowValues(line.name);
+          vals.forEach((v, i) => sums[i] += v);
+        });
+        return sums;
+      };
+      const calcUnshownValues = () => {
+        const variable = getRowValues(COST_TOTAL_LINES.variable);
+        const fixed = getRowValues(COST_TOTAL_LINES.fixed);
+        const total = getRowValues(COST_TOTAL_LINES.total);
+        const shownStaffing = sumValueRows(STAFFING_SHOWN_LINES);
+        return total.map((v, i) => Math.max(v - variable[i] - shownStaffing[i] - fixed[i], 0));
+      };
+      const makeRow = (name, values, style = "normal") => ({ name, values, style });
+
+      const rows = [];
+      [
+        "Doanh thu hội viên mới (NMS)",
+        "Doanh thu HLV cá nhân (PT)",
+        "Doanh thu Supplement",
+        "Doanh thu Yoga & Group X (Y&I)",
+        "Doanh thu Hypoxi",
+        "Doanh thu VAS",
+        "Doanh thu Califresh & Retail",
+        "TỔNG DOANH THU (Total Revenue)"
+      ].forEach(name => rows.push(makeRow(name, getRowValues(name), name.includes("TỔNG") ? "total" : "normal")));
+
+      rows.push(makeRow("Chi phí biến đổi theo doanh thu (Total Variable Cost)", getRowValues(COST_TOTAL_LINES.variable), "total"));
+      rows.push(makeRow("Chi phí lương GM shown (Staffing Cost)", sumValueRows(STAFFING_SHOWN_LINES), "total"));
+      STAFFING_SHOWN_LINES.forEach(line => rows.push(makeRow("↳ " + line.name, getRowValues(line.name), "detail")));
+
+      rows.push(makeRow("Chi phí cố định (Total Fixed cost)", getRowValues(COST_TOTAL_LINES.fixed), "total"));
+      [
+        "Sửa chữa & bảo trì (Repair & maintenance)",
+        "Vật tư tiêu hao (Supplies)",
+        "Điện nước & tiện ích (Utilities)",
+        "Chi phí chung khác (Other OH)",
+        "Giặt khăn (Laundry Service)",
+        "Bảo vệ (Security)",
+        "Vệ sinh (Cleaning_Center)",
+        "Khác thuộc Other OH (Others)"
+      ].forEach(name => rows.push(makeRow("↳ " + name, getRowValues(name), "detail")));
+
+      rows.push(makeRow("Unshown Cost", calcUnshownValues(), "unshown"));
+      rows.push(makeRow("TỔNG CHI PHÍ (TOTAL COST)", getRowValues(COST_TOTAL_LINES.total), "grand"));
+      rows.push(makeRow("LỢI NHUẬN EBITDA", getRowValues("LỢI NHUẬN EBITDA"), "grand"));
+      return rows;
+    }
+
+    function fillPnLTable() {
+      const tbody = document.getElementById("pnl-table-body");
+      tbody.innerHTML = "";
+
+      buildGMPLRows().forEach(row => {
+        let htmlStr = `<tr class="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">`;
+        const isDetail = row.style === "detail";
+        const isTotal = ["total", "grand", "unshown"].includes(row.style);
+        let fontStyleClass = isTotal ? "font-bold text-slate-900 dark:text-white" : "text-slate-700 dark:text-slate-300";
+        let bgStyleClass = row.style === "grand" ? "bg-brand-50/60 dark:bg-brand-900/20" : isTotal ? "bg-slate-50/50 dark:bg-slate-900/20" : "";
+        let nameClass = isDetail ? "pl-10 text-slate-500 dark:text-slate-400" : "";
+
+        htmlStr += `<td class="px-6 py-4 font-bold ${bgStyleClass} ${fontStyleClass}"><span class="${nameClass}">${i18n(row.name)}</span></td>`;
+
+        let ytd2025Sum = 0;
+        let cumulative17T = 0;
+
+        row.values.forEach((val, idx) => {
+          cumulative17T += val;
+          if (idx < 12) ytd2025Sum += val;
+
+          let cellHighlight = idx === 16 ? "text-emerald-500 font-bold bg-slate-100/50 dark:bg-slate-900/40" : "";
+          htmlStr += `<td class="px-4 py-4 text-right ${bgStyleClass} ${fontStyleClass} ${cellHighlight}">${formatUSD(val)}</td>`;
+
+          if (idx === 11) {
+            htmlStr += `<td class="px-4 py-4 text-right bg-slate-100/70 dark:bg-slate-900/80 font-extrabold text-slate-900 dark:text-slate-100">${formatUSD(ytd2025Sum)}</td>`;
+          }
+        });
+
+        htmlStr += `<td class="px-6 py-4 text-right bg-brand-50/70 dark:bg-brand-900/20 font-extrabold text-brand-600 dark:text-brand-400">${formatUSD(cumulative17T)}</td>`;
+        htmlStr += `</tr>`;
+
+        tbody.innerHTML += htmlStr;
+      });
+    }
+
+    // Bộ lọc bảng P&L đã được gỡ bỏ theo GM Operating Dashboard mới
+
+    // Thay đổi kỳ báo cáo theo bộ chọn
+    document.getElementById("month-select").addEventListener("change", function(e) {
+      updateDashboard(e.target.value);
+      setLanguage(currentLang, false);
+    });
+
+    // Sidebar di động (Tắt/Mở)
+    const mobileSidebar = document.getElementById("mobile-sidebar");
+    document.getElementById("mobile-menu-btn").addEventListener("click", () => {
+      mobileSidebar.classList.remove("hidden");
+    });
+    document.getElementById("close-mobile-btn").addEventListener("click", () => {
+      mobileSidebar.classList.add("hidden");
+    });
+
+    // Thiết lập Sáng/Tối (Theme toggle)
+    const themeBtn = document.getElementById("theme-toggle");
+    themeBtn.addEventListener("click", () => {
+      document.documentElement.classList.toggle("dark");
+      const isDark = document.documentElement.classList.contains("dark");
+      localStorage.setItem("theme", isDark ? "dark" : "light");
+      
+      if (revTrendChart) {
+        revTrendChart.options.scales.x.ticks.color = isDark ? '#94a3b8' : '#64748b';
+        revTrendChart.options.scales.y.ticks.color = isDark ? '#94a3b8' : '#64748b';
+        revTrendChart.options.scales.y.grid.color = isDark ? '#334155' : '#f1f5f9';
+        revTrendChart.update();
+      }
+      if (expStructureChart) {
+        expStructureChart.data.datasets[0].borderColor = isDark ? '#0f172a' : '#ffffff';
+        expStructureChart.update();
+      }
+    });
+
+
+    // Sidebar reactions: click active state + smooth scroll inside dashboard workspace
+    const sidebarLinks = document.querySelectorAll('[data-nav-link]');
+    const scrollWorkspace = document.getElementById('dashboard-top');
+    const sectionIds = ['dashboard-top', 'breakdowns', 'expenses-breakdown', 'table-section'];
+
+    function setActiveSidebar(sectionId) {
+      sidebarLinks.forEach(link => {
+        const isActive = link.dataset.section === sectionId;
+        link.classList.toggle('bg-brand-50', isActive);
+        link.classList.toggle('dark:bg-brand-900/20', isActive);
+        link.classList.toggle('text-brand-600', isActive);
+        link.classList.toggle('dark:text-brand-400', isActive);
+        link.classList.toggle('shadow-sm', isActive);
+
+        link.classList.toggle('text-slate-500', !isActive);
+        link.classList.toggle('dark:text-slate-400', !isActive);
+      });
+    }
+
+    sidebarLinks.forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const sectionId = this.dataset.section;
+        const section = document.getElementById(sectionId);
+        if (!section) return;
+
+        setActiveSidebar(sectionId);
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (mobileSidebar) mobileSidebar.classList.add('hidden');
+      });
+    });
+
+    if (scrollWorkspace) {
+      scrollWorkspace.addEventListener('scroll', () => {
+        let currentSection = 'dashboard-top';
+        sectionIds.forEach(id => {
+          const section = document.getElementById(id);
+          if (!section) return;
+          if (section.offsetTop - scrollWorkspace.scrollTop <= 140) {
+            currentSection = id;
+          }
+        });
+        setActiveSidebar(currentSection);
+      }, { passive: true });
+    }
+
+
+
+    // Improve chart responsiveness on mobile orientation / viewport changes
+    let resizeTimer = null;
+    window.addEventListener('resize', function() {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function() {
+        if (revTrendChart) revTrendChart.resize();
+        if (expStructureChart) expStructureChart.resize();
+      }, 150);
+    });
+
+
+    // Print/PDF export remains disabled
+
+    // Chạy mặc định khi tải trang
+    window.onload = async function() {
+      if (localStorage.getItem("theme") === "dark" || (!("theme" in localStorage) && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+
+      updateSidebarMTDDate();
+      initLanguageToggle();
+
+      await loadDailyJsonIntoDashboard();
+
+      initRevenueTrendChart();
+
+      const monthSelect = document.getElementById('month-select');
+      const defaultPeriod = monthSelect ? monthSelect.value : "2026-04-30";
+      updateDashboard(defaultPeriod);
+      setLanguage(currentLang, false);
+    }
+  
+
+    // Disable browser print shortcuts and keep the dashboard online-only.
+    document.addEventListener('keydown', function(e) {
+      const key = (e.key || '').toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && key === 'p') {
+        e.preventDefault();
+        alert('Print / PDF export is disabled for this internal dashboard.');
+      }
+    });
+
+    window.addEventListener('beforeprint', function() {
+      // Browser menu printing cannot always be cancelled, so @media print renders only the block message.
+      alert('Print / PDF export is disabled for this internal dashboard.');
+    });
+</script>
+</body>
+</html>
