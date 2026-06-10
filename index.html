@@ -223,6 +223,36 @@
       }
     }
 
+
+    /* Login gate */
+    #login-page {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background:
+        radial-gradient(circle at top left, rgba(14, 165, 233, 0.18), transparent 32%),
+        radial-gradient(circle at bottom right, rgba(239, 68, 68, 0.14), transparent 30%),
+        #0f172a;
+    }
+    #login-page.hidden { display: none !important; }
+    #app-shell.auth-hidden { display: none !important; }
+    .login-card {
+      width: min(440px, 100%);
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      border-radius: 28px;
+      box-shadow: 0 30px 80px rgba(2, 6, 23, 0.35);
+      overflow: hidden;
+    }
+    .dark .login-card {
+      background: rgba(15, 23, 42, 0.96);
+      border-color: rgba(51, 65, 85, 0.9);
+    }
+
     @media print {
       @page {
         size: A4 portrait;
@@ -277,7 +307,35 @@
 
   <div class="print-disabled-message">Printing / PDF export is disabled for this internal dashboard.</div>
 
-  <div class="flex h-screen overflow-hidden">
+
+  <div id="login-page">
+    <div class="login-card">
+      <div class="p-7 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 to-red-600 flex items-center justify-center text-white font-extrabold text-xl shadow-lg">C</div>
+          <div>
+            <h1 class="text-lg font-extrabold text-slate-900 dark:text-white">California GM Dashboard</h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Login to view your assigned club</p>
+          </div>
+        </div>
+      </div>
+      <form id="login-form" class="p-7 space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Username</label>
+          <input id="login-username" type="text" autocomplete="username" class="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="e.g. hvp" required>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Password</label>
+          <input id="login-password" type="password" autocomplete="current-password" class="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Enter password" required>
+        </div>
+        <div id="login-error" class="hidden text-sm font-semibold text-rose-600 bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/50 rounded-xl px-4 py-3">Invalid username or password.</div>
+        <button type="submit" class="w-full py-3 rounded-2xl bg-brand-600 hover:bg-brand-700 text-white font-extrabold shadow-lg shadow-brand-600/20 transition-colors">Login</button>
+        <p class="text-[11px] text-slate-400 dark:text-slate-500 text-center leading-relaxed">GM users see only their assigned club. BOD can view All Clubs and switch club.</p>
+      </form>
+    </div>
+  </div>
+
+  <div id="app-shell" class="flex h-screen overflow-hidden auth-hidden">
     <!-- Sidebar -->
     <aside class="hidden lg:flex flex-col w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 shrink-0">
       <div class="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
@@ -360,7 +418,7 @@
 
         <div class="flex items-center gap-3">
           <!-- Club Slicer for Admin View -->
-          <div class="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
+          <div id="club-picker-wrap" class="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
             <label for="club-search-input" class="text-xs font-semibold px-2 text-slate-500 hidden md:block">Club:</label>
             <div class="relative">
               <input
@@ -406,6 +464,10 @@
 
           <button id="lang-toggle" class="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-200 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors min-w-[74px]">
             VI | EN
+          </button>
+
+          <button id="logout-btn" class="px-3.5 py-2 rounded-xl border border-rose-200 dark:border-rose-900 bg-white dark:bg-slate-950 text-rose-600 dark:text-rose-400 text-sm font-bold hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors">
+            Logout
           </button>
         </div>
       </header>
@@ -1098,6 +1160,41 @@
     let VALID_CLUB_SET = new Set();
     let CLUB_TARGET_MAP = {};
     let CURRENT_CLUB = 'ALL';
+
+    const AUTH_USERS = [
+      { username: 'bod', password: 'N7@xQ4!pLm29', role: 'BOD', club: 'ALL', name: 'BOD' },
+      { username: 'amy', password: 'K8#vR2@tYn64', role: 'GM', club: 'AMY', name: 'ARNO' },
+      { username: 'gmc', password: 'P3!mZ9#qWx52', role: 'GM', club: 'GMC', name: 'BI HIẾU' },
+      { username: 'pbh', password: 'L6@kT1!rNc83', role: 'GM', club: 'PBH', name: 'BI CƯỜNG' },
+      { username: 'vvo', password: 'W4#pD7@hKm91', role: 'GM', club: 'VVO', name: 'BON' },
+      { username: 'amu', password: 'Q9!xB5#tLv27', role: 'GM', club: 'AMU', name: 'BRIAN' },
+      { username: 'vtc', password: 'R2@cM8!nYp45', role: 'GM', club: 'VTC', name: 'BRIAN' },
+      { username: 'lmc', password: 'H7#zK3@qTf68', role: 'GM', club: 'LMC', name: 'MAX' },
+      { username: 'hvp', password: 'J5!rW9#xNd31', role: 'GM', club: 'HVP', name: 'JOE' },
+      { username: 'gdc', password: 'F8@pL2!mVc74', role: 'GM', club: 'GDC', name: 'JUSTIN' },
+      { username: 'fdc', password: 'T3#nQ6@kRy18', role: 'GM', club: 'FDC', name: 'KENKEN' },
+      { username: 'ctc', password: 'Y9!hM4#pZw52', role: 'GM', club: 'CTC', name: 'KENT' },
+      { username: 'pco', password: 'B7@xR1!tNk86', role: 'GM', club: 'PCO', name: 'ANDY' },
+      { username: 'bds', password: 'V5#qL8@cYm24', role: 'GM', club: 'BDS', name: 'RICO' },
+      { username: 'tdc', password: 'M2!pK7#xRd93', role: 'GM', club: 'TDC', name: 'ROY' },
+      { username: 'dng', password: 'C8@wN4!qTy57', role: 'GM', club: 'DNG', name: 'TAPAS BUI' },
+      { username: 'gvc', password: 'Z6#rP1@hLm82', role: 'GM', club: 'GVC', name: 'TOM NGUYEN' },
+      { username: 'tdu', password: 'X4!mT9#kQv35', role: 'GM', club: 'TDU', name: 'TOM PHAN' },
+      { username: 'ttc', password: 'N3@zR7!pWy61', role: 'GM', club: 'TTC', name: 'ZIN' },
+      { username: 'mpc', password: 'D8#xL2@qKm49', role: 'GM', club: 'MPC', name: 'DANIEL' },
+      { username: 'hdy', password: 'K5!vP9#tNc73', role: 'GM', club: 'HDY', name: 'DAVID' },
+      { username: 'sct', password: 'R7@mW3!xYq26', role: 'GM', club: 'SCT', name: 'DUNCAN' },
+      { username: 'vsc', password: 'H4#pT8@kLm95', role: 'GM', club: 'VSC', name: 'ETO' },
+      { username: 'mac', password: 'Q2!nR6#xVc84', role: 'GM', club: 'MAC', name: 'STRONG' },
+      { username: 'hdc', password: 'F9@zM1!pTy37', role: 'GM', club: 'HDC', name: 'JUSTIN' },
+      { username: 'tcm', password: 'L8#qW4@kRn52', role: 'GM', club: 'TCM', name: 'PAX' },
+      { username: 'wpc', password: 'P5!xT7#mYc93', role: 'GM', club: 'WPC', name: 'PETER' },
+      { username: 'cpt', password: 'B3@rN8!qLv64', role: 'GM', club: 'CPT', name: 'RAYMOND' },
+      { username: 'pch', password: 'Y7#mK2@xTp41', role: 'GM', club: 'PCH', name: 'THANH' },
+      { username: 'rcc', password: 'V4!pR9#nWz86', role: 'GM', club: 'RCC', name: 'THIAGO' }
+    ];
+    let CURRENT_USER = null;
+
     let MONTH_DAY_COVERAGE = {}; // monthEnd -> { daysElapsed, daysInMonth, ratio } for target-to-date
 
     function parseCsvText(text) {
@@ -1675,13 +1772,14 @@
 
       HVP_DATA.months.forEach((monthEnd, idx) => {
         if (!OPERATING_DATA[monthEnd]) return;
-        const staffing = getStaffingScopeForMonth(monthEnd);
+        const staffing = getStaffingScopeForMonth(monthEnd) || getLatestStaffingScope();
         if (!staffing) return;
         const ptHC = staffing.ptHC || null;
         if (ptHC) {
           OPERATING_DATA[monthEnd].pt.headcount = ptHC;
           const ssServe = OPERATING_DATA[monthEnd].pt.ssServe || 0;
           const ptRev = HVP_DATA.rows.find(r => r.name === 'Doanh thu HLV cá nhân (PT)')?.values?.[idx] || 0;
+          OPERATING_DATA[monthEnd].pt.utilization = ssServe ? ssServe / ptHC : null;
           OPERATING_DATA[monthEnd].pt.burnPerHC = ssServe ? ssServe / ptHC : null;
           OPERATING_DATA[monthEnd].pt.ptPerHC = ptRev ? ptRev / ptHC : null;
           const coverage = MONTH_DAY_COVERAGE[monthEnd];
@@ -1894,11 +1992,13 @@
         : dailyClubs
       ).sort();
 
-      const current = localStorage.getItem('hvp_selected_club') || clubSelect.value || 'ALL';
-      clubSelect.innerHTML = '<option value="ALL">All Clubs</option>';
-      if (clubDatalist) clubDatalist.innerHTML = '<option value="All Clubs"></option>';
+      const isGM = CURRENT_USER && CURRENT_USER.role === 'GM';
+      const allowedClubs = isGM ? [CURRENT_USER.club] : clubs;
+      const current = isGM ? CURRENT_USER.club : (localStorage.getItem('hvp_selected_club') || clubSelect.value || 'ALL');
+      clubSelect.innerHTML = isGM ? '' : '<option value="ALL">All Clubs</option>';
+      if (clubDatalist) clubDatalist.innerHTML = isGM ? '' : '<option value="All Clubs"></option>';
 
-      clubs.forEach(club => {
+      allowedClubs.forEach(club => {
         const option = document.createElement('option');
         option.value = club;
         option.textContent = club;
@@ -1911,7 +2011,7 @@
         }
       });
 
-      clubSelect.value = clubs.includes(current) ? current : 'ALL';
+      clubSelect.value = allowedClubs.includes(current) ? current : (isGM ? CURRENT_USER.club : 'ALL');
       CURRENT_CLUB = clubSelect.value;
       if (clubInput) clubInput.value = CURRENT_CLUB === 'ALL' ? 'All Clubs' : CURRENT_CLUB;
     }
@@ -1932,7 +2032,8 @@
     function applyClubSelection(nextClub) {
       const clubSelect = document.getElementById('club-select');
       const clubInput = document.getElementById('club-search-input');
-      const resolvedClub = nextClub && getValidClubOptions().includes(nextClub) ? nextClub : 'ALL';
+      if (CURRENT_USER && CURRENT_USER.role === 'GM') nextClub = CURRENT_USER.club;
+      const resolvedClub = nextClub && getValidClubOptions().includes(nextClub) ? nextClub : (CURRENT_USER && CURRENT_USER.role === 'GM' ? CURRENT_USER.club : 'ALL');
 
       CURRENT_CLUB = resolvedClub;
       if (clubSelect) clubSelect.value = CURRENT_CLUB;
@@ -1951,6 +2052,70 @@
       const selectedPeriod = monthSelect?.value || previousPeriod || 'YTD';
       updateDashboard(selectedPeriod);
       setLanguage(currentLang, false);
+    }
+
+
+    function getStoredUser() {
+      const username = localStorage.getItem('hvp_auth_user');
+      if (!username) return null;
+      return AUTH_USERS.find(u => u.username === username) || null;
+    }
+
+    function applyAuthUi() {
+      const loginPage = document.getElementById('login-page');
+      const appShell = document.getElementById('app-shell');
+      const clubPicker = document.getElementById('club-picker-wrap');
+      const logoutBtn = document.getElementById('logout-btn');
+      const isLoggedIn = !!CURRENT_USER;
+
+      if (loginPage) loginPage.classList.toggle('hidden', isLoggedIn);
+      if (appShell) appShell.classList.toggle('auth-hidden', !isLoggedIn);
+      if (clubPicker) clubPicker.classList.toggle('hidden', isLoggedIn && CURRENT_USER.role === 'GM');
+      if (logoutBtn) logoutBtn.classList.toggle('hidden', !isLoggedIn);
+    }
+
+    function initAuthGate() {
+      CURRENT_USER = getStoredUser();
+      applyAuthUi();
+
+      const form = document.getElementById('login-form');
+      const errorBox = document.getElementById('login-error');
+      const logoutBtn = document.getElementById('logout-btn');
+
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const username = String(document.getElementById('login-username')?.value || '').trim().toLowerCase();
+          const password = String(document.getElementById('login-password')?.value || '');
+          const user = AUTH_USERS.find(u => u.username === username && u.password === password);
+
+          if (!user) {
+            if (errorBox) errorBox.classList.remove('hidden');
+            return;
+          }
+
+          CURRENT_USER = user;
+          localStorage.setItem('hvp_auth_user', user.username);
+          if (errorBox) errorBox.classList.add('hidden');
+          form.reset();
+          applyAuthUi();
+
+          rebuildClubSelect(RAW_DAILY_RECORDS);
+          applyClubSelection(user.role === 'GM' ? user.club : (localStorage.getItem('hvp_selected_club') || 'ALL'));
+        });
+      }
+
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', function() {
+          CURRENT_USER = null;
+          localStorage.removeItem('hvp_auth_user');
+          localStorage.removeItem('hvp_selected_club');
+          CURRENT_CLUB = 'ALL';
+          applyAuthUi();
+          const usernameInput = document.getElementById('login-username');
+          if (usernameInput) usernameInput.focus();
+        });
+      }
     }
 
     function setClubLabels() {
@@ -1993,7 +2158,7 @@
           nms: 0, pt: 0, yi: 0, supplement: 0, retail: 0, califresh: 0, hypoxi: 0, vas: 0, total: 0, califreshRetail: 0,
           ptssPaid: 0, ptssTrial: 0, ptssFoc: 0, newPtClients: 0, uniqueBurn: 0,
           sales: 0, media: 0, pns: 0, tm: 0, ol: 0, lwt: 0, referral: 0,
-          nmu: 0, nmsPifAmt: 0, nmsPif: 0, nmsPifMonth: 0, ptPifAmt: 0, ptPif: 0,
+          nmu: 0, nmuCount: 0, nmsPifAmt: 0, nmsPif: 0, nmsPifMonth: 0, ptPifAmt: 0, ptPif: 0,
           ptSSold: 0, ptssBurn: 0, guestMkt: 0, guestClub: 0, dateSet: new Set()
         };
       });
@@ -2032,6 +2197,8 @@
         b.ol += safeNum(readField(r, ['OL']));
         b.lwt += safeNum(readField(r, ['LWT (Live Well Together)']));
         b.referral += safeNum(readField(r, ['Referral (MKT)']));
+        // NMU is the NMU column.
+        // Sales + Media + PNS + TM + OL + LWT + Referral are guest traffic source counts.
         b.nmu += safeNum(readField(r, ['No of NMU', 'NMU']));
         b.nmsPifAmt += safeNum(readField(r, ['NMS Contract PIF amt']));
         b.nmsPif += safeNum(readField(r, ['NMS Contract PIF']));
@@ -2079,8 +2246,9 @@
       OPERATING_DATA = {};
       months.forEach(m => {
         const b = byMonth[m];
-        const totalGuest = b.guestMkt + b.guestClub;
-        const closing = totalGuest ? (b.nmu / totalGuest) * 100 : null;
+        const totalGuest = b.sales + b.media + b.pns + b.tm + b.ol + b.lwt + b.referral;
+        const nmuCount = b.nmu;
+        const closing = totalGuest ? (nmuCount / totalGuest) * 100 : null;
         const ssServe = b.ptssBurn || b.ptssPaid;
         OPERATING_DATA[m] = {
           pt: {
@@ -2095,29 +2263,30 @@
             avgUsdPTContract: b.ptPif ? b.ptPifAmt / b.ptPif : null
           },
           member: {
-            active: Math.round(b.uniqueBurn),
-            newJoins: Math.round(b.nmu),
+            active: null,
+            newJoins: null,
             leavers: null,
-            netMovement: Math.round(b.nmu),
-            ptActiveClients: Math.round(b.uniqueBurn),
+            netMovement: null,
+            ptActiveClients: null,
             ptPenetration: null
           },
           guest: {
             totalShow: Math.round(totalGuest),
-            nmu: Math.round(b.nmu),
+            nmu: Math.round(nmuCount),
             closingNmu: closing
           },
           contracts: {
             pt: Math.round(b.ptPif),
-            ces: Math.round(b.nmsPif),
+            nms: Math.round(b.nmsPif),
+            ces: null,
             kickfit: null,
             mix: null,
             pilates: null,
-            monthly: Math.round(b.nmsPifMonth),
+            monthly: null,
             physio: null,
             hpx: null,
             yi: null,
-            total: Math.round(b.ptPif + b.nmsPif + b.nmsPifMonth)
+            total: Math.round(b.ptPif + b.nmsPif)
           }
         };
       });
@@ -2831,45 +3000,47 @@
       });
     }
 
-    // Cập nhật PT Efficiency & Member Activity
+    // Cập nhật PT Efficiency & các block vận hành.
+    // Rule: không dùng dữ liệu demo/fallback. Field nào chưa có source thật sẽ hiển thị "Chưa có data".
     function updateOperatingKPIs(selectedPeriod) {
-      const data = OPERATING_DATA[selectedPeriod] || OPERATING_DATA["2026-04-30"];
-      const pt = data.pt;
-      const mem = data.member;
-      const guest = data.guest || OPERATING_DATA["2026-04-30"].guest;
-      const contracts = data.contracts || OPERATING_DATA["2026-04-30"].contracts;
+      const data = OPERATING_DATA[selectedPeriod] || null;
+      const pt = data?.pt || {};
+      const guest = data?.guest || {};
+      const contracts = data?.contracts || {};
+      const noDataText = currentLang === "en" ? "No data" : "Chưa có data";
+
+      const hasValue = (v) => v !== null && v !== undefined && v !== "" && !Number.isNaN(v);
+      const fmtNumOrNoData = (v, suffix = "") => hasValue(v) ? formatNumber(v, suffix) : noDataText;
+      const fmtUsdOrNoData = (v) => hasValue(v) ? formatUSD(v) : noDataText;
+      const fmtSignedOrNoData = (v) => hasValue(v) ? ((v > 0 ? "+" : "") + formatNumber(v)) : noDataText;
 
       const setText = (id, value) => {
         const el = document.getElementById(id);
         if (el) el.innerText = value;
       };
 
-      setText("pt-snap-headcount", formatNumber(pt.headcount));
-      setText("pt-snap-util", formatNumber(pt.utilization, "%"));
-      setText("pt-snap-sold", formatNumber(pt.ssSold));
-      setText("pt-snap-serve", formatNumber(pt.ssServe));
-      setText("pt-snap-burn-hc", formatNumber(pt.burnPerHC));
+      // PT: only keep fields backed by daily.csv and staffing-cost.csv.
+      const ptHC = hasValue(pt.headcount) ? pt.headcount : null;
+      const ptSold = hasValue(pt.ssSold) ? pt.ssSold : null;
+      const ptServe = hasValue(pt.ssServe) ? pt.ssServe : null;
+      const ptUtil = (hasValue(ptServe) && hasValue(ptHC) && ptHC > 0) ? (ptServe / ptHC) : null; // SS served per PT HC
 
-      setText("pt-kpi-headcount", formatNumber(pt.headcount));
-      setText("pt-kpi-sold", formatNumber(pt.ssSold));
-      setText("pt-kpi-serve", formatNumber(pt.ssServe));
-      setText("pt-kpi-util", formatNumber(pt.utilization, "%"));
+      setText("pt-snap-headcount", fmtNumOrNoData(ptHC));
+      setText("pt-snap-util", hasValue(ptUtil) ? formatNumber(ptUtil) + " SS/HC" : noDataText);
+      setText("pt-snap-sold", fmtNumOrNoData(ptSold));
+      setText("pt-snap-serve", fmtNumOrNoData(ptServe));
+      setText("pt-snap-burn-hc", hasValue(ptUtil) ? formatNumber(ptUtil) + " SS/HC" : noDataText);
 
-      setText("mem-kpi-active", formatNumber(mem.active));
-      setText("mem-kpi-new", formatNumber(mem.newJoins));
-      setText("mem-kpi-leavers", formatNumber(mem.leavers));
-      setText("mem-kpi-net", (mem.netMovement > 0 ? "+" : "") + formatNumber(mem.netMovement));
+      setText("pt-kpi-headcount", fmtNumOrNoData(ptHC));
+      setText("pt-kpi-sold", fmtNumOrNoData(ptSold));
+      setText("pt-kpi-serve", fmtNumOrNoData(ptServe));
+      setText("pt-kpi-util", hasValue(ptUtil) ? formatNumber(ptUtil) + " SS/HC" : noDataText);
 
       const ptRows = [
-        ["PT Headcount", "# HC", formatNumber(pt.headcount)],
-        ["PT SS Sold", "#SS sold", formatNumber(pt.ssSold)],
-        ["PT SS Serve", "SS burn", formatNumber(pt.ssServe)],
-        ["PT Utilization", "%", formatNumber(pt.utilization, "%")],
-        ["SS burn / HC", "#SS", formatNumber(pt.burnPerHC)],
-        ["SS burn / HC / day", "#SS/HC", formatNumber(pt.burnPerHCDay)],
-        ["PT$ per PT Headcount", "US$/HC", pt.ptPerHC == null ? "-" : formatUSD(pt.ptPerHC)],
-        ["Avg USD / SS sold", "US$/SS Sold", pt.avgUsdSSSold == null ? "-" : formatUSD(pt.avgUsdSSSold)],
-        ["Avg USD / PT Contract", "US$/PT Contract", pt.avgUsdPTContract == null ? "-" : formatUSD(pt.avgUsdPTContract)]
+        ["PT Headcount", "# HC", fmtNumOrNoData(ptHC)],
+        ["PT SS Sold", "#SS sold", fmtNumOrNoData(ptSold)],
+        ["PT SS Serve", "SS burn", fmtNumOrNoData(ptServe)],
+        ["PT Utilization", "SS/HC", hasValue(ptUtil) ? formatNumber(ptUtil) + " SS/HC" : noDataText]
       ];
       const ptBody = document.getElementById("pt-efficiency-body");
       if (ptBody) {
@@ -2882,13 +3053,19 @@
         `).join("");
       }
 
+      // Member Activity: no reliable member source has been connected yet.
+      setText("mem-kpi-active", noDataText);
+      setText("mem-kpi-new", noDataText);
+      setText("mem-kpi-leavers", noDataText);
+      setText("mem-kpi-net", noDataText);
+
       const memRows = [
-        ["Active Members", "# Clients", formatNumber(mem.active)],
-        ["New Joins", "# Clients", formatNumber(mem.newJoins)],
-        ["Leavers", "# Clients", formatNumber(mem.leavers)],
-        ["Net Member Movement", "# Clients", (mem.netMovement > 0 ? "+" : "") + formatNumber(mem.netMovement)],
-        ["PT Active Clients", "# Clients", formatNumber(mem.ptActiveClients)],
-        ["PT Penetration", "%", formatNumber(mem.ptPenetration, "%")]
+        ["Active Members", "# Clients", noDataText],
+        ["New Joins", "# Clients", noDataText],
+        ["Leavers", "# Clients", noDataText],
+        ["Net Member Movement", "# Clients", noDataText],
+        ["PT Active Clients", "# Clients", noDataText],
+        ["PT Penetration", "%", noDataText]
       ];
       const memBody = document.getElementById("member-activity-body");
       if (memBody) {
@@ -2896,19 +3073,20 @@
           <tr class="hover:bg-slate-50/60 dark:hover:bg-slate-900/40 transition-colors">
             <td class="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">${i18n(r[0])}</td>
             <td class="px-4 py-3 text-slate-400">${i18n(r[1])}</td>
-            <td class="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">${r[2]}</td>
+            <td class="px-4 py-3 text-right font-bold text-slate-500 dark:text-slate-400">${r[2]}</td>
           </tr>
         `).join("");
       }
 
-      setText("guest-kpi-show", formatNumber(guest.totalShow));
-      setText("guest-kpi-nmu", formatNumber(guest.nmu));
-      setText("guest-kpi-closing", formatNumber(guest.closingNmu, "%"));
+      // Guest: use daily.csv fields only. If missing, show no data.
+      setText("guest-kpi-show", fmtNumOrNoData(guest.totalShow));
+      setText("guest-kpi-nmu", fmtNumOrNoData(guest.nmu));
+      setText("guest-kpi-closing", fmtNumOrNoData(guest.closingNmu, "%"));
 
       const guestRows = [
-        ["Total SHOW", "# Traffic", formatNumber(guest.totalShow)],
-        ["NMU", "# Clients", formatNumber(guest.nmu)],
-        ["% Closing NMU", "%", formatNumber(guest.closingNmu, "%")]
+        ["Total SHOW", "# Traffic", fmtNumOrNoData(guest.totalShow)],
+        ["NMU", "# Clients", fmtNumOrNoData(guest.nmu)],
+        ["% Closing NMU", "%", fmtNumOrNoData(guest.closingNmu, "%")]
       ];
       const guestBody = document.getElementById("guest-body");
       if (guestBody) {
@@ -2921,22 +3099,27 @@
         `).join("");
       }
 
-      setText("contract-kpi-pt", formatNumber(contracts.pt));
-      setText("contract-kpi-ces", formatNumber(contracts.ces));
-      setText("contract-kpi-kickfit", formatNumber(contracts.kickfit));
-      setText("contract-kpi-total", formatNumber(contracts.total));
+      // Contracts: show only mapped fields from daily.csv; missing fields display no data.
+      setText("contract-kpi-pt", fmtNumOrNoData(contracts.pt));
+      // Reuse the old CES card position for NMS contracts because daily.csv has NMS Contract PIF count, not CES count.
+      const cesCardLabel = document.querySelector('#contract-kpi-ces')?.previousElementSibling;
+      if (cesCardLabel) cesCardLabel.innerText = currentLang === 'en' ? 'NMS Contracts' : 'HĐ NMS';
+      setText("contract-kpi-ces", fmtNumOrNoData(contracts.nms));
+      setText("contract-kpi-kickfit", noDataText);
+      setText("contract-kpi-total", fmtNumOrNoData(contracts.total));
 
       const contractRows = [
-        ["PT", "PT", formatNumber(contracts.pt)],
-        ["CES", "PT", formatNumber(contracts.ces)],
-        ["Kickfit", "PT", formatNumber(contracts.kickfit)],
-        ["Mix", "PT", formatNumber(contracts.mix)],
-        ["Pilates", "PT", formatNumber(contracts.pilates)],
-        ["Monthly", "PT", formatNumber(contracts.monthly)],
-        ["Physio", "PT", formatNumber(contracts.physio)],
-        ["HPX", "Hypoxi", formatNumber(contracts.hpx)],
-        ["YI", "YI", formatNumber(contracts.yi)],
-        ["Total", "", formatNumber(contracts.total)]
+        ["PT", "PT", fmtNumOrNoData(contracts.pt)],
+        ["NMS", "Membership", fmtNumOrNoData(contracts.nms)],
+        ["CES", "PT", noDataText],
+        ["Kickfit", "PT", noDataText],
+        ["Mix", "PT", noDataText],
+        ["Pilates", "PT", noDataText],
+        ["Monthly", "Membership", noDataText],
+        ["Physio", "PT", noDataText],
+        ["HPX", "Hypoxi", noDataText],
+        ["YI", "YI", noDataText],
+        ["Total", "", fmtNumOrNoData(contracts.total)]
       ];
       const contractsBody = document.getElementById("contracts-body");
       if (contractsBody) {
@@ -3378,6 +3561,7 @@
         document.documentElement.classList.remove("dark");
       }
 
+      initAuthGate();
       updateSidebarMTDDate();
       initLanguageToggle();
 
@@ -3386,6 +3570,10 @@
       await loadFixedCostCsv();
       await loadDailyCsvIntoDashboard();
       await loadStaffingCostCsv();
+      if (CURRENT_USER && CURRENT_USER.role === 'GM') {
+        rebuildClubSelect(RAW_DAILY_RECORDS);
+        CURRENT_CLUB = CURRENT_USER.club;
+      }
       if (RAW_DAILY_RECORDS.length) rebuildDashboardFromCsvRecords();
       updateClubAreaLabels();
 
