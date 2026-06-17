@@ -350,8 +350,8 @@
             H
           </div>
           <div>
-            <h1 class="font-extrabold text-sm tracking-wide text-slate-900 dark:text-white uppercase">HVP Club</h1>
-            <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">GM Name</div>
+            <h1 id="sidebar-club-name" class="font-extrabold text-sm tracking-wide text-slate-900 dark:text-white uppercase">HVP Club</h1>
+            <div id="sidebar-gm-name" class="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">GM Name</div>
             <span class="text-xs text-emerald-500 font-medium flex items-center gap-1 mt-0.5">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               <span id="sidebar-mtd-date">MTD = today - 1</span>
@@ -417,8 +417,8 @@
           </button>
           
           <div>
-            <h2 class="text-lg font-bold text-slate-900 dark:text-white">Báo cáo Tài chính & Vận hành HVP</h2>
-            <p class="text-xs text-slate-400 hidden sm:block">Dành riêng cho Ban Giám Đốc (GM) • Cập nhật dữ liệu chi phí nhân sự và vận hành cố định</p>
+            <h2 id="header-club-gm-title" class="text-lg font-extrabold text-slate-900 dark:text-white">HVP Club - GM Name</h2>
+            <p id="header-club-gm-subtitle" class="text-xs text-slate-400 hidden sm:block">GM Operating Dashboard • Báo cáo Tài chính & Vận hành</p>
           </div>
         </div>
 
@@ -1000,8 +1000,8 @@
       <div class="flex items-center gap-3 mb-8">
         <div class="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white font-bold text-xl">H</div>
         <div>
-          <h1 class="font-extrabold text-sm text-slate-900 dark:text-white uppercase">HVP Club</h1>
-          <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">GM Name</div>
+          <h1 id="mobile-sidebar-club-name" class="font-extrabold text-sm text-slate-900 dark:text-white uppercase">HVP Club</h1>
+          <div id="mobile-sidebar-gm-name" class="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">GM Name</div>
           <span class="text-xs text-emerald-500" id="mobile-sidebar-mtd-date">MTD = today - 1</span>
         </div>
       </div>
@@ -1249,6 +1249,7 @@
     const EXTERNAL_DAILY_CSV_URL = './daily.csv';
     const EXTERNAL_LOC_CSV_URL = './LOC.csv';
     const EXTERNAL_TARGET_CSV_URL = './target.csv';
+    const EXTERNAL_CLUB_INFO_CSV_URL = './Target-revenue.csv';
     const EXTERNAL_STAFFING_COST_CSV_URL = './staffing-cost.csv';
     const EXTERNAL_FIXED_COST_CSV_URL = './fixed-cost.csv';
     const EXTERNAL_HC_CSV_URL = './DB_HC.csv';
@@ -1258,6 +1259,7 @@
     let RAW_DAILY_RECORDS = [];
     let RAW_LOC_RECORDS = [];
     let RAW_TARGET_RECORDS = [];
+    let RAW_CLUB_INFO_RECORDS = [];
     let RAW_STAFFING_COST_RECORDS = [];
     let RAW_FIXED_COST_RECORDS = [];
     let RAW_HC_RECORDS = [];
@@ -1271,6 +1273,7 @@
     let CLUB_AREA_MAP = {};
     let VALID_CLUB_SET = new Set();
     let CLUB_TARGET_MAP = {};
+    let CLUB_INFO_MAP = {}; // club -> GM/Region/BM info from Target-revenue.csv
     let CURRENT_CLUB = 'ALL';
 
     const AUTH_USERS = [
@@ -1493,7 +1496,90 @@
           "SPO": safeNum(row[32])
         };
       });
+
       return map;
+    }
+
+    function buildClubInfoMapFromMatrix(text) {
+      const matrix = parseCsvText(text);
+      const map = {};
+      if (!matrix.length) return map;
+      const headerRowIndex = matrix.findIndex(row =>
+        String(row[0] || '').replace(/^\uFEFF/, '').trim().toLowerCase() === 'no.' &&
+        String(row[1] || '').trim().toLowerCase() === 'club'
+      );
+      if (headerRowIndex < 0) return map;
+      const header = matrix[headerRowIndex].map(h => String(h || '').replace(/^\uFEFF/, '').trim());
+      const findCol = (names, fallback) => {
+        for (const name of names) {
+          const idx = header.findIndex(h => h.trim().toLowerCase() === String(name).trim().toLowerCase());
+          if (idx >= 0) return idx;
+        }
+        return fallback;
+      };
+      const clubIdx = findCol(['Club'], 1);
+      const gmIdx = findCol(['GM Name'], 9);
+      const regionIdx = findCol(['Region'], 13);
+      const salesBmIdx = findCol(['Sales BM'], 10);
+      const ptBmIdx = findCol(['PT BM'], 11);
+      matrix.slice(headerRowIndex + 2).forEach(row => {
+        const club = String(row[clubIdx] || '').trim();
+        if (!club || club.toLowerCase() === 'club') return;
+        const gmName = String(row[gmIdx] || '').trim();
+        const region = String(row[regionIdx] || '').trim();
+        const salesBM = String(row[salesBmIdx] || '').trim();
+        const ptBM = String(row[ptBmIdx] || '').trim();
+        if (!gmName && !region && !salesBM && !ptBM) return;
+        map[club] = { club, gmName, region, salesBM, ptBM };
+      });
+      return map;
+    }
+
+    function getCurrentClubInfo() {
+      if (CURRENT_CLUB === 'ALL') {
+        return { club: 'All Clubs', gmName: 'All GMs', region: '', salesBM: '', ptBM: '' };
+      }
+      return CLUB_INFO_MAP[CURRENT_CLUB] || { club: CURRENT_CLUB || 'HVP', gmName: 'GM Name', region: '', salesBM: '', ptBM: '' };
+    }
+
+    function updateClubGMHeader() {
+      const info = getCurrentClubInfo();
+      const clubName = info.club || CURRENT_CLUB || '-';
+      const gmName = info.gmName || 'GM Name';
+      const title = `${clubName} Club - ${gmName}`;
+      const subtitleParts = ['GM Operating Dashboard'];
+      if (info.region) subtitleParts.push(`Region: ${info.region}`);
+      if (info.salesBM && info.salesBM !== '0') subtitleParts.push(`Sales BM: ${info.salesBM}`);
+      if (info.ptBM && info.ptBM !== '0') subtitleParts.push(`PT BM: ${info.ptBM}`);
+      const subtitle = subtitleParts.join(' • ');
+      const setText = (id, value) => { const el = document.getElementById(id); if (el) el.innerText = value; };
+      setText('header-club-gm-title', title);
+      setText('header-club-gm-subtitle', subtitle);
+      setText('sidebar-club-name', `${clubName} Club`);
+      setText('sidebar-gm-name', gmName);
+      setText('mobile-sidebar-club-name', `${clubName} Club`);
+      setText('mobile-sidebar-gm-name', gmName);
+    }
+
+    async function loadClubInfoCsv() {
+      try {
+        const res = await fetch(EXTERNAL_CLUB_INFO_CSV_URL, { cache: 'no-store' });
+        if (!res.ok) {
+          console.warn(`Cannot load ${EXTERNAL_CLUB_INFO_CSV_URL}. Club/GM header will use fallback values.`, res.status);
+          updateClubGMHeader();
+          return false;
+        }
+        const text = await res.text();
+        RAW_CLUB_INFO_RECORDS = parseCsvText(text);
+        CLUB_INFO_MAP = buildClubInfoMapFromMatrix(text);
+        updateClubGMHeader();
+        console.log(`Loaded ${Object.keys(CLUB_INFO_MAP).length} club/GM mappings from ${EXTERNAL_CLUB_INFO_CSV_URL}.`);
+        return Object.keys(CLUB_INFO_MAP).length > 0;
+      } catch (error) {
+        console.warn('Failed to load Target-revenue.csv club/GM mapping.', error);
+        updateClubGMHeader();
+        return false;
+      }
     }
 
     function sumTargetRows(rows) {
@@ -2740,6 +2826,7 @@
       clubSelect.value = allowedClubs.includes(current) ? current : (isGM ? CURRENT_USER.club : 'ALL');
       CURRENT_CLUB = clubSelect.value;
       if (clubInput) clubInput.value = CURRENT_CLUB === 'ALL' ? 'All Clubs' : CURRENT_CLUB;
+      updateClubGMHeader();
     }
 
     function getValidClubOptions() {
@@ -2765,6 +2852,7 @@
       if (clubSelect) clubSelect.value = CURRENT_CLUB;
       if (clubInput) clubInput.value = CURRENT_CLUB === 'ALL' ? 'All Clubs' : CURRENT_CLUB;
       localStorage.setItem('hvp_selected_club', CURRENT_CLUB);
+      updateClubGMHeader();
 
       const previousPeriod = document.getElementById('month-select')?.value || 'YTD';
       if (RAW_DAILY_RECORDS.length) {
@@ -4321,9 +4409,11 @@
       initAuthGate();
       updateSidebarMTDDate();
       initLanguageToggle();
+      updateClubGMHeader();
 
       await loadLocCsv();
       await loadTargetCsv();
+      await loadClubInfoCsv();
       await loadFixedCostCsv();
       await loadDailyCsvIntoDashboard();
       await loadStaffingCostCsv();
@@ -4333,6 +4423,7 @@
       if (CURRENT_USER && CURRENT_USER.role === 'GM') {
         rebuildClubSelect(RAW_DAILY_RECORDS);
         CURRENT_CLUB = CURRENT_USER.club;
+        updateClubGMHeader();
       }
       if (RAW_DAILY_RECORDS.length) {
         rebuildDashboardFromCsvRecords();
