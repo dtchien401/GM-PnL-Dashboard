@@ -789,6 +789,24 @@
                 <p id="checkin-actual-days" class="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">-</p>
               </div>
             </div>
+            <div class="px-6 pb-6">
+              <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 p-4">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                  <div>
+                    <h4 class="text-sm font-bold text-slate-900 dark:text-white">Check-in Heat Map</h4>
+                    <p class="text-xs text-slate-400">Màu càng đậm = check-in càng cao trong kỳ đang chọn</p>
+                  </div>
+                  <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                    <span>Low</span>
+                    <span class="w-5 h-3 rounded bg-sky-50 border border-slate-200"></span>
+                    <span class="w-5 h-3 rounded bg-sky-200 border border-slate-200"></span>
+                    <span class="w-5 h-3 rounded bg-sky-500 border border-slate-200"></span>
+                    <span>High</span>
+                  </div>
+                </div>
+                <div id="checkin-heatmap" class="min-h-[120px]"></div>
+              </div>
+            </div>
             <div class="overflow-x-auto custom-scroll px-6 pb-6">
               <table class="w-full text-sm text-left">
                 <thead class="text-xs uppercase bg-slate-50 dark:bg-slate-900 text-slate-500">
@@ -2002,6 +2020,15 @@
       }
     }
 
+    function isoDateKeyFromAny(value) {
+      const d = parseYmdLocal(value);
+      if (!d) return '';
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
     function buildCheckinMap(records) {
       const map = {};
       records.forEach(r => {
@@ -2011,12 +2038,16 @@
         if (VALID_CLUB_SET && VALID_CLUB_SET.size && !VALID_CLUB_SET.has(club)) return;
 
         const checkedIn = safeNum(readField(r, ['Checked-in', 'Checked in', 'Check-in', 'Checkin']));
-        const dateKey = String(readField(r, ['Date', 'DATE']) || '').trim();
+        const rawDate = readField(r, ['Date', 'DATE']);
+        const dateKey = isoDateKeyFromAny(rawDate) || String(rawDate || '').trim();
 
         if (!map[monthEnd]) map[monthEnd] = {};
-        if (!map[monthEnd][club]) map[monthEnd][club] = { total: 0, days: new Set() };
+        if (!map[monthEnd][club]) map[monthEnd][club] = { total: 0, days: new Set(), daily: {} };
         map[monthEnd][club].total += checkedIn;
-        if (dateKey) map[monthEnd][club].days.add(dateKey);
+        if (dateKey) {
+          map[monthEnd][club].days.add(dateKey);
+          map[monthEnd][club].daily[dateKey] = (map[monthEnd][club].daily[dateKey] || 0) + checkedIn;
+        }
       });
 
       Object.keys(map).forEach(monthEnd => {
@@ -2034,13 +2065,15 @@
       if (!monthMap) return null;
 
       if (CURRENT_CLUB === 'ALL') {
-        const out = { total: 0, dayCount: 0 };
-        const allDays = new Set();
+        const out = { total: 0, dayCount: 0, daily: {} };
         Object.entries(monthMap).forEach(([club, value]) => {
           if (VALID_CLUB_SET && VALID_CLUB_SET.size && !VALID_CLUB_SET.has(club)) return;
           out.total += value.total || 0;
-          out.dayCount = Math.max(out.dayCount, value.dayCount || 0);
+          Object.entries(value.daily || {}).forEach(([dateKey, val]) => {
+            out.daily[dateKey] = (out.daily[dateKey] || 0) + (val || 0);
+          });
         });
+        out.dayCount = Object.keys(out.daily).length;
         return out;
       }
       return monthMap[CURRENT_CLUB] || null;
@@ -2070,6 +2103,73 @@
       }
     }
 
+    function heatColor(value, min, max) {
+      if (!value || max <= 0) return 'rgba(241, 245, 249, 0.9)';
+      const ratio = max === min ? 1 : Math.max(0, Math.min(1, (value - min) / (max - min)));
+      const alpha = 0.15 + ratio * 0.75;
+      return `rgba(14, 165, 233, ${alpha})`;
+    }
+
+    function renderCheckinHeatmap(selectedPeriod) {
+      const el = document.getElementById('checkin-heatmap');
+      if (!el) return;
+      const noDataText = currentLang === "en" ? "No check-in daily data" : "Chưa có dữ liệu check-in theo ngày";
+
+      if (selectedPeriod === 'YTD') {
+        const monthItems = HVP_DATA.months.map(monthEnd => {
+          const item = getCheckinScopeForMonth(monthEnd);
+          return { monthEnd, total: item ? (item.total || 0) : 0 };
+        }).filter(x => x.total > 0);
+        if (!monthItems.length) {
+          el.innerHTML = `<div class="text-sm text-slate-400 py-6 text-center">${noDataText}</div>`;
+          return;
+        }
+        const values = monthItems.map(x => x.total);
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        el.innerHTML = `<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">${monthItems.map(x => `
+          <div class="rounded-xl border border-slate-200 dark:border-slate-800 p-3 text-center" style="background:${heatColor(x.total, min, max)}" title="${getMonthShortLabel(x.monthEnd)}: ${formatNumber(x.total)}">
+            <div class="text-xs font-bold text-slate-700 dark:text-slate-100">${getMonthShortLabel(x.monthEnd)}</div>
+            <div class="text-sm font-extrabold text-slate-900 dark:text-white mt-1">${formatNumber(x.total)}</div>
+          </div>
+        `).join('')}</div>`;
+        return;
+      }
+
+      const item = getCheckinScopeForMonth(selectedPeriod);
+      const daily = item && item.daily ? item.daily : {};
+      const values = Object.values(daily).filter(v => v > 0);
+      if (!values.length) {
+        el.innerHTML = `<div class="text-sm text-slate-400 py-6 text-center">${noDataText}</div>`;
+        return;
+      }
+
+      const d = parseYmdLocal(selectedPeriod);
+      const year = d ? d.getFullYear() : Number(selectedPeriod.slice(0, 4));
+      const month = d ? d.getMonth() : Number(selectedPeriod.slice(5, 7)) - 1;
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const firstDow = new Date(year, month, 1).getDay();
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const blanks = Array.from({ length: firstDow }, () => `<div></div>`).join('');
+      const cells = Array.from({ length: daysInMonth }, (_, idx) => {
+        const day = idx + 1;
+        const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const val = daily[key] || 0;
+        const color = heatColor(val, min, max);
+        return `<div class="rounded-lg border border-slate-200 dark:border-slate-800 p-2 min-h-[58px] flex flex-col justify-between" style="background:${color}" title="${key}: ${formatNumber(val)}">
+          <div class="text-[11px] font-bold text-slate-500 dark:text-slate-300">${day}</div>
+          <div class="text-xs font-extrabold text-slate-900 dark:text-white text-right">${val ? formatNumber(val) : '-'}</div>
+        </div>`;
+      }).join('');
+
+      el.innerHTML = `
+        <div class="grid grid-cols-7 gap-1 mb-1 text-[11px] font-bold text-slate-400 text-center">${weekday.map(w => `<div>${w}</div>`).join('')}</div>
+        <div class="grid grid-cols-7 gap-1">${blanks}${cells}</div>
+      `;
+    }
+
     function updateCheckinActual(selectedPeriod) {
       const setText = (id, value) => { const el = document.getElementById(id); if (el) el.innerText = value; };
       const noDataText = currentLang === "en" ? "No data" : "Chưa có data";
@@ -2094,6 +2194,8 @@
       setText('checkin-actual-total', total !== null && total !== undefined ? formatNumber(total) : noDataText);
       setText('checkin-actual-avg-day', avg ? formatNumber(avg) : noDataText);
       setText('checkin-actual-days', days !== null && days !== undefined ? formatNumber(days) : noDataText);
+
+      renderCheckinHeatmap(selectedPeriod);
 
       const body = document.getElementById('checkin-actual-body');
       if (body) {
