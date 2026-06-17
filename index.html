@@ -547,7 +547,7 @@
                   <h4 class="text-base font-extrabold text-slate-900 dark:text-white">BOD Performance Mix Chart</h4>
                   <p class="text-xs text-slate-400 mt-1">Bar = Revenue MTD & Target MTD • Line = Achievement %. Sorted by Achievement %.</p>
                 </div>
-                <span class="text-xs bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg text-slate-500 font-bold">Top 15 clubs</span>
+                <span class="text-xs bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg text-slate-500 font-bold">Top 20 clubs</span>
               </div>
               <div class="h-80 w-full relative">
                 <canvas id="bodAchievementComboChart"></canvas>
@@ -3190,7 +3190,7 @@
     function renderBodAchievementComboChart(rows) {
       const canvas = document.getElementById('bodAchievementComboChart');
       if (!canvas || typeof Chart === 'undefined') return;
-      const topRows = (rows || []).slice(0, 15);
+      const topRows = (rows || []).slice(0, 20);
       if (bodAchievementComboChart) {
         bodAchievementComboChart.destroy();
         bodAchievementComboChart = null;
