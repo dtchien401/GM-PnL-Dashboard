@@ -241,10 +241,6 @@
     #login-page.hidden { display: none !important; }
     #app-shell.auth-hidden { display: none !important; }
 
-    /* Temporary edit mode: login gate disabled */
-    #login-page { display: none !important; }
-    #app-shell.auth-hidden { display: flex !important; }
-    #logout-btn { display: none !important; }
 
     .login-card {
       width: min(440px, 100%);
@@ -341,7 +337,7 @@
     </div>
   </div>
 
-  <div id="app-shell" class="flex h-screen overflow-hidden">
+  <div id="app-shell" class="flex h-screen overflow-hidden auth-hidden">
     <!-- Sidebar -->
     <aside class="hidden lg:flex flex-col w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 shrink-0">
       <div class="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
@@ -364,6 +360,10 @@
         <a href="#dashboard-top" data-nav-link data-section="dashboard-top" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-medium transition-all group">
           <i class="fa-solid fa-chart-pie text-lg transition-transform group-hover:scale-110"></i>
           <span>Tổng quan (P&L)</span>
+        </a>
+        <a href="#bod-view-section" id="bod-sidebar-link" data-nav-link data-section="bod-view-section" class="sidebar-link hidden flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-white font-medium transition-all group">
+          <i class="fa-solid fa-building-columns text-lg transition-transform group-hover:scale-110"></i>
+          <span>BOD View</span>
         </a>
         <a href="#breakdowns" data-nav-link data-section="breakdowns" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-white font-medium transition-all group">
           <i class="fa-solid fa-money-bill-trend-up text-lg transition-transform group-hover:scale-110"></i>
@@ -423,6 +423,12 @@
         </div>
 
         <div class="flex items-center gap-3">
+          <!-- BOD-only View Toggle -->
+          <div id="view-toggle-wrap" class="hidden items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
+            <button id="gm-view-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-extrabold bg-white dark:bg-slate-950 text-slate-800 dark:text-white shadow-sm">GM View</button>
+            <button id="bod-view-btn" type="button" class="px-3 py-1.5 rounded-lg text-xs font-extrabold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">BOD View</button>
+          </div>
+
           <!-- Club Slicer for Admin View -->
           <div id="club-picker-wrap" class="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
             <label for="club-search-input" class="text-xs font-semibold px-2 text-slate-500 hidden md:block">Club:</label>
@@ -491,6 +497,66 @@
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Cơ cấu chi phí bám theo hierarchy P&L: <strong>Variable Cost</strong>, <strong>Staffing Cost</strong>, <strong>Fixed Cost</strong>; phần không show trực tiếp như Rental và các khoản ngoài phạm vi GM được gom vào <strong>Unshown Cost</strong>. Tổng chi phí luôn khớp với <strong>TỔNG CHI PHÍ (TOTAL COST)</strong>.</p>
           </div>
         </div>
+
+
+        <!-- BOD View: visible only for BOD login -->
+        <section id="bod-view-section" class="hidden space-y-6">
+          <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-5">
+              <div>
+                <h3 class="text-xl font-extrabold text-slate-900 dark:text-white">BOD View - All Clubs</h3>
+                <p class="text-xs text-slate-400 mt-1">Company-level summary and club ranking. Visible only for BOD login.</p>
+              </div>
+              <span id="bod-period-label" class="text-xs bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 border border-rose-100 dark:border-rose-900/50 px-3 py-1.5 rounded-lg font-bold">Period</span>
+            </div>
+
+            <div class="grid grid-cols-2 xl:grid-cols-6 gap-3 mb-6">
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                <p class="text-xs text-slate-400">Total Revenue</p>
+                <p id="bod-total-revenue" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+              </div>
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                <p class="text-xs text-slate-400">Cost Projection</p>
+                <p id="bod-total-cost" class="text-xl font-extrabold text-rose-600 dark:text-rose-400 mt-1">-</p>
+              </div>
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                <p class="text-xs text-slate-400">Cost Variance</p>
+                <p id="bod-cost-variance" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+              </div>
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                <p class="text-xs text-slate-400">Check-in</p>
+                <p id="bod-checkin" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+              </div>
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                <p class="text-xs text-slate-400">Guest Traffic</p>
+                <p id="bod-guest" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+              </div>
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                <p class="text-xs text-slate-400">Total HC</p>
+                <p id="bod-hc" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto custom-scroll">
+              <table class="w-full text-sm text-left">
+                <thead class="text-xs uppercase bg-slate-50 dark:bg-slate-900 text-slate-500">
+                  <tr>
+                    <th class="px-4 py-3 rounded-l-lg">Rank</th>
+                    <th class="px-4 py-3">Club</th>
+                    <th class="px-4 py-3">GM</th>
+                    <th class="px-4 py-3 text-right">Revenue</th>
+                    <th class="px-4 py-3 text-right">Cost Projection</th>
+                    <th class="px-4 py-3 text-right">Cost Variance</th>
+                    <th class="px-4 py-3 text-right">Check-in</th>
+                    <th class="px-4 py-3 text-right">Guest</th>
+                    <th class="px-4 py-3 text-right rounded-r-lg">HC</th>
+                  </tr>
+                </thead>
+                <tbody id="bod-club-ranking-body" class="divide-y divide-slate-100 dark:divide-slate-900"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
 
         <!-- Scorecard Rows (Dynamic Values) -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1010,6 +1076,10 @@
         <a href="#dashboard-top" data-nav-link data-section="dashboard-top" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 font-medium">
           <i class="fa-solid fa-chart-pie"></i>
           <span>Tổng quan (P&L)</span>
+        </a>
+        <a href="#bod-view-section" id="bod-mobile-link" data-nav-link data-section="bod-view-section" class="sidebar-link hidden flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white font-medium transition-all">
+          <i class="fa-solid fa-building-columns"></i>
+          <span>BOD View</span>
         </a>
         <a href="#breakdowns" data-nav-link data-section="breakdowns" class="sidebar-link flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white font-medium transition-all">
           <i class="fa-solid fa-money-bill-trend-up"></i>
@@ -2490,23 +2560,39 @@
       `;
     }
 
+    function getOperationalDaysForPeriod(monthEnd) {
+      const info = getCurrentMtdInfoForMonth(monthEnd);
+      return info.daysElapsed || 0;
+    }
+
+    function getOperationalDaysLabel(monthEnd) {
+      if (monthEnd === 'YTD') return 'YTD operational days';
+      const info = getCurrentMtdInfoForMonth(monthEnd);
+      const currentMonthEnd = monthEndKeyFromLocalDate(new Date());
+      if (monthEnd === currentMonthEnd) return `MTD Days (${info.daysElapsed}/${info.daysInMonth})`;
+      return `Full Month Days (${info.daysInMonth}/${info.daysInMonth})`;
+    }
+
     function updateCheckinActual(selectedPeriod) {
       const setText = (id, value) => { const el = document.getElementById(id); if (el) el.innerText = value; };
       const noDataText = currentLang === "en" ? "No data" : "Chưa có data";
 
       let total = 0;
       let days = 0;
+      let daysLabel = 'Data Days';
       if (selectedPeriod === 'YTD') {
         HVP_DATA.months.forEach(monthEnd => {
           const item = getCheckinScopeForMonth(monthEnd);
           if (!item) return;
           total += item.total || 0;
-          days += item.dayCount || 0;
+          days += getOperationalDaysForPeriod(monthEnd);
         });
+        daysLabel = getOperationalDaysLabel('YTD');
       } else {
         const item = getCheckinScopeForMonth(selectedPeriod);
         total = item ? (item.total || 0) : null;
-        days = item ? (item.dayCount || 0) : null;
+        days = item ? getOperationalDaysForPeriod(selectedPeriod) : null;
+        daysLabel = getOperationalDaysLabel(selectedPeriod);
       }
 
       const avg = total && days ? total / days : null;
@@ -2521,8 +2607,8 @@
       if (body) {
         const rows = [
           ['Total Check-in', 'DB-Checkin.Checked-in', total !== null && total !== undefined ? formatNumber(total) : noDataText],
-          ['Avg Check-in / Day', 'Total Check-in / Data Days', avg ? formatNumber(avg) : noDataText],
-          ['Data Days', 'Distinct Date rows', days !== null && days !== undefined ? formatNumber(days) : noDataText]
+          ['Avg Check-in / Day', 'Total Check-in / Operational Days', avg ? formatNumber(avg) : noDataText],
+          ['Data Days', daysLabel, days !== null && days !== undefined ? formatNumber(days) : noDataText]
         ];
         body.innerHTML = rows.map(r => `
           <tr class="hover:bg-slate-50/60 dark:hover:bg-slate-900/40 transition-colors">
@@ -3001,6 +3087,129 @@
       return Array.from(clubSelect.options).map(option => option.value);
     }
 
+
+    function formatPeriodLabelForBod(period) {
+      if (period === 'YTD') return 'YTD';
+      const d = parseYmdLocal(period);
+      if (!d) return period || '-';
+      return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+    }
+
+    function getClubGMNameForBod(club) {
+      const info = CLUB_INFO_MAP && CLUB_INFO_MAP[club];
+      return (info && (info.gmName || info.gm || info['GM Name'])) || (AUTH_USERS.find(u => u.club === club)?.name) || '-';
+    }
+
+    function getBodRevenueForClub(club, period) {
+      if (!RAW_DAILY_RECORDS || !RAW_DAILY_RECORDS.length) return 0;
+      return RAW_DAILY_RECORDS.reduce((sum, row) => {
+        const rowClub = String(readField(row, ['CLUB', 'Club']) || '').trim();
+        if (rowClub !== club) return sum;
+        const rowMonth = parseMonthTokenToMonthEnd(readField(row, ['EOM', 'Month', 'MONTH'])) || parseMonthTokenToMonthEnd(readField(row, ['DATE', 'Date']));
+        if (period !== 'YTD' && rowMonth !== period) return sum;
+        return sum + getRevenueAmount(row);
+      }, 0);
+    }
+
+    function getBodCostForClub(club) {
+      const lines = PNL_COST_MAP && PNL_COST_MAP[club];
+      if (!lines) return { target: 0, mtd: 0, projection: 0, variance: 0 };
+      const line = lines[normalizePnlCode('TOTAL COST')];
+      if (!line) return { target: 0, mtd: 0, projection: 0, variance: 0 };
+      const target = Number(line.target || 0);
+      const projection = Number(line.projection || 0);
+      const mtd = Number(line.mtd || 0);
+      return { target, mtd, projection, variance: target - projection };
+    }
+
+    function getBodMetricFromMap(map, club, period, key = 'total') {
+      if (!map || !Object.keys(map).length) return 0;
+      const monthKey = period === 'YTD' ? Object.keys(map).sort().slice(-1)[0] : period;
+      const item = map[monthKey] && map[monthKey][club];
+      return item ? Number(item[key] || 0) : 0;
+    }
+
+    function getBodClubList() {
+      const clubs = getValidClubOptions ? getValidClubOptions() : [];
+      return clubs.filter(c => c && c !== 'ALL').sort();
+    }
+
+    function renderBodView(selectedPeriod) {
+      const section = document.getElementById('bod-view-section');
+      if (!section) return;
+      const isBod = CURRENT_USER && CURRENT_USER.role === 'BOD';
+      section.classList.toggle('hidden', !isBod);
+      document.getElementById('bod-sidebar-link')?.classList.toggle('hidden', !isBod);
+      document.getElementById('bod-mobile-link')?.classList.toggle('hidden', !isBod);
+      document.getElementById('view-toggle-wrap')?.classList.toggle('hidden', !isBod);
+      if (!isBod) return;
+
+      const period = selectedPeriod || document.getElementById('month-select')?.value || 'YTD';
+      const clubs = getBodClubList();
+      const rows = clubs.map(club => {
+        const revenue = getBodRevenueForClub(club, period);
+        const cost = getBodCostForClub(club);
+        const checkin = getBodMetricFromMap(CHECKIN_MAP, club, period, 'total');
+        const guest = getBodMetricFromMap(GUEST_TRAFFIC_MAP, club, period, 'total');
+        const hc = getBodMetricFromMap(HC_ACTUAL_MAP, club, period, 'total');
+        return { club, gm: getClubGMNameForBod(club), revenue, costProjection: cost.projection, costVariance: cost.variance, checkin, guest, hc };
+      }).filter(r => r.revenue || r.costProjection || r.checkin || r.guest || r.hc)
+        .sort((a, b) => b.revenue - a.revenue);
+
+      const totals = rows.reduce((acc, r) => {
+        acc.revenue += r.revenue;
+        acc.costProjection += r.costProjection;
+        acc.costVariance += r.costVariance;
+        acc.checkin += r.checkin;
+        acc.guest += r.guest;
+        acc.hc += r.hc;
+        return acc;
+      }, { revenue: 0, costProjection: 0, costVariance: 0, checkin: 0, guest: 0, hc: 0 });
+
+      const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+      setText('bod-period-label', `Period: ${formatPeriodLabelForBod(period)}`);
+      setText('bod-total-revenue', formatUSD(totals.revenue));
+      setText('bod-total-cost', formatUSD(totals.costProjection));
+      setText('bod-cost-variance', `${totals.costVariance >= 0 ? '+' : ''}${formatUSD(totals.costVariance)}`);
+      const varEl = document.getElementById('bod-cost-variance');
+      if (varEl) varEl.className = `text-xl font-extrabold mt-1 ${totals.costVariance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`;
+      setText('bod-checkin', formatNumber(totals.checkin));
+      setText('bod-guest', formatNumber(totals.guest));
+      setText('bod-hc', formatNumber(totals.hc));
+
+      const tbody = document.getElementById('bod-club-ranking-body');
+      if (!tbody) return;
+      tbody.innerHTML = rows.map((r, i) => {
+        const varClass = r.costVariance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
+        return `<tr class="hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
+          <td class="px-4 py-3 font-bold text-slate-500">${i + 1}</td>
+          <td class="px-4 py-3 font-extrabold text-slate-900 dark:text-white">${r.club}</td>
+          <td class="px-4 py-3 text-slate-500 dark:text-slate-400">${r.gm}</td>
+          <td class="px-4 py-3 text-right font-extrabold text-slate-900 dark:text-white">${formatUSD(r.revenue)}</td>
+          <td class="px-4 py-3 text-right font-bold text-rose-600 dark:text-rose-400">${formatUSD(r.costProjection)}</td>
+          <td class="px-4 py-3 text-right font-extrabold ${varClass}">${r.costVariance >= 0 ? '+' : ''}${formatUSD(r.costVariance)}</td>
+          <td class="px-4 py-3 text-right font-bold text-slate-700 dark:text-slate-200">${formatNumber(r.checkin)}</td>
+          <td class="px-4 py-3 text-right font-bold text-slate-700 dark:text-slate-200">${formatNumber(r.guest)}</td>
+          <td class="px-4 py-3 text-right font-bold text-slate-700 dark:text-slate-200">${formatNumber(r.hc)}</td>
+        </tr>`;
+      }).join('') || `<tr><td colspan="9" class="px-4 py-6 text-center text-slate-400 font-semibold">No BOD data available for selected period.</td></tr>`;
+    }
+
+    function initViewToggle() {
+      const gmBtn = document.getElementById('gm-view-btn');
+      const bodBtn = document.getElementById('bod-view-btn');
+      const setActive = (mode) => {
+        if (!gmBtn || !bodBtn) return;
+        const active = 'px-3 py-1.5 rounded-lg text-xs font-extrabold bg-white dark:bg-slate-950 text-slate-800 dark:text-white shadow-sm';
+        const idle = 'px-3 py-1.5 rounded-lg text-xs font-extrabold text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white';
+        gmBtn.className = mode === 'gm' ? active : idle;
+        bodBtn.className = mode === 'bod' ? active : idle;
+      };
+      gmBtn?.addEventListener('click', () => { setActive('gm'); document.getElementById('dashboard-top')?.scrollTo({ top: 0, behavior: 'smooth' }); });
+      bodBtn?.addEventListener('click', () => { setActive('bod'); document.getElementById('bod-view-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+      setActive('gm');
+    }
+
     function normalizeClubInput(value) {
       const raw = String(value || '').trim();
       if (!raw || raw.toLowerCase() === 'all' || raw.toLowerCase() === 'all clubs') return 'ALL';
@@ -3053,6 +3262,11 @@
       if (appShell) appShell.classList.toggle('auth-hidden', !isLoggedIn);
       if (clubPicker) clubPicker.classList.toggle('hidden', isLoggedIn && CURRENT_USER.role === 'GM');
       if (logoutBtn) logoutBtn.classList.toggle('hidden', !isLoggedIn);
+      const isBod = isLoggedIn && CURRENT_USER.role === 'BOD';
+      document.getElementById('view-toggle-wrap')?.classList.toggle('hidden', !isBod);
+      document.getElementById('bod-sidebar-link')?.classList.toggle('hidden', !isBod);
+      document.getElementById('bod-mobile-link')?.classList.toggle('hidden', !isBod);
+      document.getElementById('bod-view-section')?.classList.toggle('hidden', !isBod);
     }
 
     function initAuthGate() {
@@ -3847,6 +4061,7 @@
 
       // 5. Cập nhật Bảng Chi phí thực tế GM mới nhất (Cost Items table)
       updateCostBreakdownTable(mIdx, isYTD);
+      renderBodView(selectedPeriod);
     }
 
     // Vẽ & Cập nhật Biểu đồ cấu trúc chi phí (Nhân sự vs Cố định)
@@ -4592,6 +4807,7 @@
       }
 
       initAuthGate();
+      initViewToggle();
       updateSidebarMTDDate();
       initLanguageToggle();
       updateClubGMHeader();
