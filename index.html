@@ -240,6 +240,12 @@
     }
     #login-page.hidden { display: none !important; }
     #app-shell.auth-hidden { display: none !important; }
+
+    /* Temporary edit mode: login gate disabled */
+    #login-page { display: none !important; }
+    #app-shell.auth-hidden { display: flex !important; }
+    #logout-btn { display: none !important; }
+
     .login-card {
       width: min(440px, 100%);
       background: rgba(255, 255, 255, 0.96);
@@ -335,7 +341,7 @@
     </div>
   </div>
 
-  <div id="app-shell" class="flex h-screen overflow-hidden auth-hidden">
+  <div id="app-shell" class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
     <aside class="hidden lg:flex flex-col w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 shrink-0">
       <div class="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
@@ -494,7 +500,7 @@
             <div class="absolute right-0 bottom-0 translate-y-1/4 translate-x-1/4 w-32 h-32 bg-brand-500/5 rounded-full blur-2xl"></div>
             <div class="flex justify-between items-start">
               <div>
-                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tổng doanh thu</p>
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Club Revenue</p>
                 <h3 id="card-rev-value" class="text-2xl font-extrabold text-slate-900 dark:text-white mt-1.5 transition-all">...</h3>
               </div>
               <span class="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center text-brand-600 dark:text-brand-400">
@@ -972,7 +978,7 @@
       rows: [
         // --- DOANH THU (Revenues) ---
         {
-          name: "Doanh thu hội viên mới (NMS)",
+          name: "Doanh thu CC",
           category: "Revenue",
           values: [122803, 148768, 116107, 114547, 142507, 121193, 127770, 128366, 121054, 118432, 112543, 131454, 110452, 98450, 98802, 77802, 92356]
         },
@@ -1017,7 +1023,7 @@
           values: [2580, 2370, 2690, 2440, 2660, 2370, 2540, 2450, 2630, 2430, 2510, 2990, 2310, 2160, 6208, 6126, 3422]
         },
         {
-          name: "TỔNG DOANH THU (Total Revenue)",
+          name: "Total Club Revenue",
           category: "Revenue",
           values: [207915, 236588, 198777, 200689, 233708, 206858, 217830, 216360, 206898, 207135, 195463, 228247, 190882, 175580, 254061, 208246, 165684]
         },
@@ -1140,7 +1146,7 @@
     // =========================
     // EXTERNAL CSV DATA LOADER
     // Reads ./daily.csv from the same Netlify/GitHub folder and maps it into this dashboard.
-    // CSV is expected to have rows by EOM + Club and flat columns such as NMS, PT, YI, Total, PTSS Paid...
+    // CSV supports DB-REV line-item structure: EOM, DATE, DAY, No., CLUB, Description, link ce, to link pnl, REV. CC = old NMS.
     // Admin view supports All Clubs plus each individual club from the CSV.
     // =========================
     const EXTERNAL_DAILY_CSV_URL = './daily.csv';
@@ -1292,7 +1298,7 @@
 
     function getValidDailyClubs() {
       const dailyClubs = Array.from(new Set(
-        RAW_DAILY_RECORDS.map(r => String(r.Club || r.club || '').trim()).filter(Boolean)
+        RAW_DAILY_RECORDS.map(r => getDailyClub(r)).filter(Boolean)
       ));
       const validClubs = Object.keys(CLUB_AREA_MAP);
       if (!validClubs.length) return dailyClubs;
@@ -1301,7 +1307,7 @@
 
     function filterRecordsByValidLoc(records) {
       if (!VALID_CLUB_SET || VALID_CLUB_SET.size === 0) return records;
-      return records.filter(r => VALID_CLUB_SET.has(String(r.Club || r.club || '').trim()));
+      return records.filter(r => VALID_CLUB_SET.has(getDailyClub(r)));
     }
 
     function getCurrentClubAreaM2() {
@@ -1792,7 +1798,7 @@
       const variableRow = HVP_DATA.rows.find(r => r.name === 'Chi phí biến đổi theo doanh thu (Total Variable Cost)');
       const fixedRow = HVP_DATA.rows.find(r => r.name === 'Chi phí cố định (Total Fixed cost)');
       const rentalRow = HVP_DATA.rows.find(r => r.name === 'Chi phí cố định - Thuê (Total Fixed cost-rental)');
-      const revenueRow = HVP_DATA.rows.find(r => r.name === 'TỔNG DOANH THU (Total Revenue)');
+      const revenueRow = HVP_DATA.rows.find(r => r.name === 'Total Club Revenue');
       const ebitdaRow = HVP_DATA.rows.find(r => r.name === 'LỢI NHUẬN EBITDA');
 
       if (totalCostRow) {
@@ -1827,9 +1833,19 @@
       }
     }
 
+    function excelSerialToLocalDate(value) {
+      const n = Number(String(value || '').trim());
+      if (!Number.isFinite(n) || n < 20000 || n > 80000) return null;
+      // Excel serial date, using 1899-12-30 base. Example: 45809 = 2025-06-01.
+      const utc = new Date(Date.UTC(1899, 11, 30 + Math.floor(n)));
+      return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
+    }
+
     function toMonthEnd(dateText) {
       if (!dateText) return '';
       const raw = String(dateText).trim();
+      const excelDate = excelSerialToLocalDate(raw);
+      if (excelDate) return monthEndKeyFromLocalDate(excelDate);
       if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
       const d = new Date(raw);
       if (isNaN(d.getTime())) return raw.slice(0, 10);
@@ -1839,12 +1855,16 @@
 
     function parseDateValue(value) {
       if (!value) return null;
+      const excelDate = excelSerialToLocalDate(value);
+      if (excelDate) return excelDate;
       const d = new Date(value);
       return isNaN(d.getTime()) ? null : d;
     }
 
     function parseYmdLocal(value) {
       if (!value) return null;
+      const excelDate = excelSerialToLocalDate(value);
+      if (excelDate) return excelDate;
       const txt = String(value).trim().slice(0, 10);
       const m = txt.match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
@@ -1899,7 +1919,8 @@
     }
 
     function getTargetToDate(targetKey, idx, isYTD) {
-      const baseTarget = HVP_DATA.targets[targetKey] || 0;
+      const targetAliasMap = { 'CC': 'NMS', 'CS': 'Total Revenue', 'Gym': 'PT', 'HPX': 'Hypoxi', 'Retail & Califresh': 'Retail' };
+      const baseTarget = HVP_DATA.targets[targetKey] || HVP_DATA.targets[targetAliasMap[targetKey]] || 0;
       if (isYTD) {
         return HVP_DATA.months.reduce((sum, monthEnd) => sum + baseTarget * getTargetRatioForMonth(monthEnd), 0);
       }
@@ -1935,6 +1956,38 @@
         if (Object.prototype.hasOwnProperty.call(row, name)) return row[name];
       }
       return 0;
+    }
+
+
+    function getDailyClub(row) {
+      return String(readField(row, ['CLUB', 'Club', 'club']) || '').trim();
+    }
+
+    function normalizeTextKey(value) {
+      return String(value || '').trim().toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ');
+    }
+
+    function getRevenueAmount(row) {
+      return safeNum(readField(row, ['REV', 'Rev', 'rev', 'Revenue', 'Amount']));
+    }
+
+    function getRevenueBucket(row) {
+      const desc = normalizeTextKey(readField(row, ['Description', 'DESCRIPTION']));
+      const linkCe = normalizeTextKey(readField(row, ['link ce', 'Link CE', 'link_ce']));
+      const pnl = normalizeTextKey(readField(row, ['to link pnl', 'To Link PNL', 'to_link_pnl']));
+
+      if (desc === 'cc' || pnl === 'nms' || linkCe === 'nms') return 'cc';
+      if (['pt', 'ces', 'stretching', 'kickfit', 'mixed', 'pilates'].includes(desc)) return desc;
+      if (['physio', 'prophysio'].includes(desc)) return 'prophysio';
+      if (['hpx', 'hypoxi'].includes(desc) || ['hpx', 'hypoxi'].includes(pnl)) return 'hpx';
+      if (desc === 'yi 1:1' || desc === 'yoga class') return desc === 'yoga class' ? 'yogaClass' : 'yi11';
+      if (['yoga', 'yandi', 'y&i'].includes(pnl)) return 'yi11';
+      if (desc === 'gx 1:1' || desc === 'group class') return desc === 'group class' ? 'groupClass' : 'gx11';
+      if (['group x', 'gx'].includes(pnl)) return 'gx11';
+      if (desc === 'supplement' || pnl === 'supplement') return 'supplement';
+      if (desc === 'vas' || pnl === 'vas') return 'vas';
+      if (desc.includes('retail') || desc.includes('califresh') || pnl.includes('retail') || pnl.includes('califresh')) return 'retailCalifresh';
+      return '';
     }
 
     function upsertHVPRow(rowName, values, category = 'Revenue') {
@@ -1986,7 +2039,7 @@
 
       // Dropdown/search scope = clubs that appear in daily.csv AND are active/valid in LOC.csv.
       // LOC rows with No. = 0 or missing from LOC are excluded.
-      const dailyClubs = Array.from(new Set(records.map(r => String(r.Club || r.club || '').trim()).filter(Boolean)));
+      const dailyClubs = Array.from(new Set(records.map(r => getDailyClub(r)).filter(Boolean)));
       const clubs = (VALID_CLUB_SET && VALID_CLUB_SET.size > 0
         ? dailyClubs.filter(club => VALID_CLUB_SET.has(club))
         : dailyClubs
@@ -2135,7 +2188,7 @@
       ];
       zeroRows.forEach(name => upsertHVPRow(name, months.map(() => 0), 'Expense'));
       upsertHVPRow('LỢI NHUẬN EBITDA', months.map((_, idx) => {
-        const rev = HVP_DATA.rows.find(r => r.name === 'TỔNG DOANH THU (Total Revenue)')?.values?.[idx] || 0;
+        const rev = HVP_DATA.rows.find(r => r.name === 'Total Club Revenue')?.values?.[idx] || 0;
         return rev;
       }), 'Profit');
     }
@@ -2144,30 +2197,34 @@
       const scopedDailyRecords = filterRecordsByValidLoc(RAW_DAILY_RECORDS);
       const source = CURRENT_CLUB === 'ALL'
         ? scopedDailyRecords
-        : scopedDailyRecords.filter(r => String(r.Club || r.club || '').trim() === CURRENT_CLUB);
+        : scopedDailyRecords.filter(r => getDailyClub(r) === CURRENT_CLUB);
       if (!source.length) return false;
 
       const monthSet = new Set();
-      source.forEach(r => monthSet.add(toMonthEnd(readField(r, ['EOM', 'eom', 'Date', 'date']))));
+      source.forEach(r => monthSet.add(toMonthEnd(readField(r, ['EOM', 'eom', 'Date', 'DATE', 'date']))));
       const months = Array.from(monthSet).filter(Boolean).sort();
       if (!months.length) return false;
 
-      const byMonth = {};
-      months.forEach(m => {
-        byMonth[m] = {
-          nms: 0, pt: 0, yi: 0, supplement: 0, retail: 0, califresh: 0, hypoxi: 0, vas: 0, total: 0, califreshRetail: 0,
-          ptssPaid: 0, ptssTrial: 0, ptssFoc: 0, newPtClients: 0, uniqueBurn: 0,
-          sales: 0, media: 0, pns: 0, tm: 0, ol: 0, lwt: 0, referral: 0,
-          nmu: 0, nmuCount: 0, nmsPifAmt: 0, nmsPif: 0, nmsPifMonth: 0, ptPifAmt: 0, ptPif: 0,
-          ptSSold: 0, ptssBurn: 0, guestMkt: 0, guestClub: 0, dateSet: new Set()
-        };
+      const newBucket = () => ({
+        cc: 0,
+        pt: 0, ces: 0, stretching: 0, kickfit: 0, mixed: 0, pilates: 0, prophysio: 0,
+        hpx: 0, yi11: 0, yogaClass: 0, gx11: 0, groupClass: 0,
+        supplement: 0, vas: 0, retailCalifresh: 0,
+        gym: 0, yoga: 0, groupX: 0, cs: 0, total: 0,
+        ptssPaid: 0, ptssTrial: 0, ptssFoc: 0, newPtClients: 0, uniqueBurn: 0,
+        sales: 0, media: 0, pns: 0, tm: 0, ol: 0, lwt: 0, referral: 0,
+        nmu: 0, nmuCount: 0, nmsPifAmt: 0, nmsPif: 0, nmsPifMonth: 0, ptPifAmt: 0, ptPif: 0,
+        ptSSold: 0, ptssBurn: 0, guestMkt: 0, guestClub: 0, dateSet: new Set()
       });
 
+      const byMonth = {};
+      months.forEach(m => byMonth[m] = newBucket());
+
       source.forEach(r => {
-        const m = toMonthEnd(readField(r, ['EOM', 'eom', 'Date', 'date']));
+        const m = toMonthEnd(readField(r, ['EOM', 'eom', 'Date', 'DATE', 'date']));
         if (!byMonth[m]) return;
         const b = byMonth[m];
-        const rowDay = parseYmdLocal(readField(r, ['Day.1', 'Day', 'Date', 'date']));
+        const rowDay = parseYmdLocal(readField(r, ['DATE', 'Date', 'Day.1', 'Day', 'date']));
         if (isFutureDateBeyondMtd(rowDay, m)) return;
         if (rowDay) {
           const yyyy = rowDay.getFullYear();
@@ -2175,16 +2232,25 @@
           const dd = String(rowDay.getDate()).padStart(2, '0');
           b.dateSet.add(`${yyyy}-${mm}-${dd}`);
         }
-        b.nms += safeNum(readField(r, ['NMS']));
-        b.pt += safeNum(readField(r, ['PT']));
-        b.yi += safeNum(readField(r, ['YI', 'Y&I']));
-        b.supplement += safeNum(readField(r, ['Supplement']));
-        b.retail += safeNum(readField(r, ['Retail']));
-        b.califresh += safeNum(readField(r, ['Califresh']));
-        b.hypoxi += safeNum(readField(r, ['Hypoxi']));
-        b.vas += safeNum(readField(r, ['VAS']));
-        b.total += safeNum(readField(r, ['Total', 'Total Revenue']));
-        b.califreshRetail += safeNum(readField(r, ['Califresh and Retail', 'Califresh + Retail']));
+
+        // New daily.csv structure: EOM, DATE, DAY, No., CLUB, Description, link ce, to link pnl, REV.
+        // Revenue is mapped from the hierarchy: Total Club Revenue = CC + CS.
+        const amount = getRevenueAmount(r);
+        const bucket = getRevenueBucket(r);
+        if (bucket && amount) b[bucket] += amount;
+
+        // Backward compatibility if an older wide daily.csv is loaded.
+        if (!bucket) {
+          b.cc += safeNum(readField(r, ['CC', 'NMS']));
+          b.pt += safeNum(readField(r, ['PT']));
+          b.yi11 += safeNum(readField(r, ['YI 1:1', 'YI', 'Y&I']));
+          b.supplement += safeNum(readField(r, ['Supplement']));
+          b.hpx += safeNum(readField(r, ['HPX', 'Hypoxi']));
+          b.vas += safeNum(readField(r, ['VAS']));
+          b.retailCalifresh += safeNum(readField(r, ['Retail & Califresh', 'Califresh and Retail', 'Califresh + Retail']))
+            || (safeNum(readField(r, ['Retail'])) + safeNum(readField(r, ['Califresh'])));
+        }
+
         b.ptssPaid += safeNum(readField(r, ['PTSS Paid']));
         b.ptssTrial += safeNum(readField(r, ['PTSS Trial']));
         b.ptssFoc += safeNum(readField(r, ['PTSS Initial/FOC']));
@@ -2197,18 +2263,25 @@
         b.ol += safeNum(readField(r, ['OL']));
         b.lwt += safeNum(readField(r, ['LWT (Live Well Together)']));
         b.referral += safeNum(readField(r, ['Referral (MKT)']));
-        // NMU is the NMU column.
-        // Sales + Media + PNS + TM + OL + LWT + Referral are guest traffic source counts.
         b.nmu += safeNum(readField(r, ['No of NMU', 'NMU']));
-        b.nmsPifAmt += safeNum(readField(r, ['NMS Contract PIF amt']));
-        b.nmsPif += safeNum(readField(r, ['NMS Contract PIF']));
-        b.nmsPifMonth += safeNum(readField(r, ['NMS Contract PIF month']));
+        b.nmsPifAmt += safeNum(readField(r, ['NMS Contract PIF amt', 'CC Contract PIF amt']));
+        b.nmsPif += safeNum(readField(r, ['NMS Contract PIF', 'CC Contract PIF']));
+        b.nmsPifMonth += safeNum(readField(r, ['NMS Contract PIF month', 'CC Contract PIF month']));
         b.ptPifAmt += safeNum(readField(r, ['PT Contract PIF Amt']));
         b.ptPif += safeNum(readField(r, ['PT Contract PIF']));
         b.ptSSold += safeNum(readField(r, ['PT Ssold']));
         b.ptssBurn += safeNum(readField(r, ['PTSS burn (Paid SS+MBS PTSS)']));
         b.guestMkt += safeNum(readField(r, ['Guest from MKT']));
         b.guestClub += safeNum(readField(r, ['No of guests from club deps']));
+      });
+
+      months.forEach(m => {
+        const b = byMonth[m];
+        b.gym = b.pt + b.ces + b.stretching + b.kickfit + b.mixed + b.pilates + b.prophysio;
+        b.yoga = b.yi11 + b.yogaClass;
+        b.groupX = b.gx11 + b.groupClass;
+        b.cs = b.gym + b.hpx + b.yoga + b.groupX + b.supplement + b.vas + b.retailCalifresh;
+        b.total = b.cc + b.cs;
       });
 
       HVP_DATA.months = months;
@@ -2219,28 +2292,39 @@
         const daysElapsed = m === monthEndKeyFromLocalDate(new Date())
           ? mtdInfo.daysElapsed
           : (dataDays || mtdInfo.daysElapsed);
-        const daysInMonth = mtdInfo.daysInMonth;
         MONTH_DAY_COVERAGE[m] = {
           daysElapsed,
-          daysInMonth,
-          ratio: Math.min(Math.max(daysElapsed / daysInMonth, 0), 1)
+          daysInMonth: mtdInfo.daysInMonth,
+          ratio: Math.min(Math.max(daysElapsed / mtdInfo.daysInMonth, 0), 1)
         };
       });
+
       applyTargetForCurrentClub();
       applyFixedCostTargetForCurrentClub();
       const arr = (field) => months.map(m => Math.round(byMonth[m][field] || 0));
-      const totalFromComponents = (m) => byMonth[m].nms + byMonth[m].pt + byMonth[m].yi + byMonth[m].supplement + byMonth[m].retail + byMonth[m].califresh + byMonth[m].hypoxi + byMonth[m].vas;
 
-      upsertHVPRow('Doanh thu hội viên mới (NMS)', arr('nms'));
+      upsertHVPRow('Doanh thu CC', arr('cc'));
+      upsertHVPRow('Doanh thu CS', arr('cs'));
+      upsertHVPRow('Doanh thu Gym', arr('gym'));
       upsertHVPRow('Doanh thu HLV cá nhân (PT)', arr('pt'));
-      upsertHVPRow('Doanh thu Yoga & Group X (Y&I)', arr('yi'));
+      upsertHVPRow('Doanh thu CES', arr('ces'));
+      upsertHVPRow('Doanh thu Stretching', arr('stretching'));
+      upsertHVPRow('Doanh thu Kickfit', arr('kickfit'));
+      upsertHVPRow('Doanh thu Mixed', arr('mixed'));
+      upsertHVPRow('Doanh thu Pilates', arr('pilates'));
+      upsertHVPRow('Doanh thu Physio / Prophysio', arr('prophysio'));
+      upsertHVPRow('Doanh thu Hypoxi', arr('hpx'));
+      upsertHVPRow('Doanh thu Yoga & Group X (Y&I)', months.map(m => Math.round(byMonth[m].yoga + byMonth[m].groupX)));
+      upsertHVPRow('Doanh thu Yoga', arr('yoga'));
+      upsertHVPRow('Doanh thu YI 1:1', arr('yi11'));
+      upsertHVPRow('Doanh thu Yoga Class', arr('yogaClass'));
+      upsertHVPRow('Doanh thu Group X', arr('groupX'));
+      upsertHVPRow('Doanh thu GX 1:1', arr('gx11'));
+      upsertHVPRow('Doanh thu Group Class', arr('groupClass'));
       upsertHVPRow('Doanh thu Supplement', arr('supplement'));
-      upsertHVPRow('Doanh thu Bán lẻ (Retail)', arr('retail'));
-      upsertHVPRow('Doanh thu Califresh', arr('califresh'));
-      upsertHVPRow('Doanh thu Hypoxi', arr('hypoxi'));
       upsertHVPRow('Doanh thu VAS', arr('vas'));
-      upsertHVPRow('Doanh thu Califresh & Retail', months.map(m => Math.round(byMonth[m].califreshRetail || (byMonth[m].califresh + byMonth[m].retail))));
-      upsertHVPRow('TỔNG DOANH THU (Total Revenue)', months.map(m => Math.round(byMonth[m].total || totalFromComponents(m))));
+      upsertHVPRow('Doanh thu Califresh & Retail', arr('retailCalifresh'));
+      upsertHVPRow('Total Club Revenue', arr('total'));
       ensureRowsAlignedToMonths(months);
 
       OPERATING_DATA = {};
@@ -2262,31 +2346,11 @@
             avgUsdSSSold: b.ptSSold ? b.pt / b.ptSSold : null,
             avgUsdPTContract: b.ptPif ? b.ptPifAmt / b.ptPif : null
           },
-          member: {
-            active: null,
-            newJoins: null,
-            leavers: null,
-            netMovement: null,
-            ptActiveClients: null,
-            ptPenetration: null
-          },
-          guest: {
-            totalShow: Math.round(totalGuest),
-            nmu: Math.round(nmuCount),
-            closingNmu: closing
-          },
+          member: { active: null, newJoins: null, leavers: null, netMovement: null, ptActiveClients: null, ptPenetration: null },
+          guest: { totalShow: Math.round(totalGuest), nmu: Math.round(nmuCount), closingNmu: closing },
           contracts: {
-            pt: Math.round(b.ptPif),
-            nms: Math.round(b.nmsPif),
-            ces: null,
-            kickfit: null,
-            mix: null,
-            pilates: null,
-            monthly: null,
-            physio: null,
-            hpx: null,
-            yi: null,
-            total: Math.round(b.ptPif + b.nmsPif)
+            pt: Math.round(b.ptPif), nms: Math.round(b.nmsPif), ces: null, kickfit: null, mix: null,
+            pilates: null, monthly: null, physio: null, hpx: null, yi: null, total: Math.round(b.ptPif + b.nmsPif)
           }
         };
       });
@@ -2305,7 +2369,7 @@
           return false;
         }
         const text = await res.text();
-        RAW_DAILY_RECORDS = csvToObjects(text);
+        RAW_DAILY_RECORDS = csvToObjectsAutoHeader(text, ['EOM', 'DATE', 'CLUB', 'Description', 'REV']);
         if (!RAW_DAILY_RECORDS.length) {
           console.warn('daily.csv has no records. Using fallback HVP_DATA.');
           return false;
@@ -2411,7 +2475,7 @@
       "Cơ cấu chi phí bám theo hierarchy P&L:": "Cost structure follows the P&L hierarchy:",
       "phần không show trực tiếp như Rental và các khoản ngoài phạm vi GM được gom vào": "items not shown directly, such as rental and non-GM scope costs, are grouped into",
       "Tổng chi phí luôn khớp với": "Total cost always reconciles to",
-      "Tổng doanh thu": "Total Revenue",
+      "Total Club Revenue": "Total Revenue",
       "Lợi nhuận EBITDA": "EBITDA",
       "Tổng chi phí (Total Cost)": "Total Cost",
       "Doanh thu / m² (3.6K m²)": "Revenue / m² (3.6K m²)",
@@ -2422,7 +2486,7 @@
       "Chi phí / m² (Không thuê):": "Cost / m² (excl. rent):",
       "Xu hướng Doanh thu thực tế vs Mục tiêu": "Revenue Trend",
       "Revenue Trend": "Revenue Trend",
-      "Dữ liệu phân mảnh theo dịch vụ NMS & PT qua từng thời kỳ": "Key revenue performance overview: MTD, Target, MoM and YoY",
+      "Dữ liệu phân mảnh theo dịch vụ CC & CS qua từng thời kỳ": "Key revenue performance overview: MTD, Target, MoM and YoY",
       "Key revenue performance overview: MTD, Target, MoM and YoY": "Key revenue performance overview: MTD, Target, MoM and YoY",
       "Dịch vụ Khác": "Other Services",
       "Dịch vụ khác": "Other Services",
@@ -2480,14 +2544,14 @@
       "© 2026 Workout Club HVP Plaza (Hùng Vương Plaza). All rights reserved.": "© 2026 Workout Club HVP Plaza (Hung Vuong Plaza). All rights reserved.",
       "GM Operating Dashboard • Cost / PT Efficiency / Member Activity": "GM Operating Dashboard • Cost / PT Efficiency / Member Activity",
       "3,613.6 m² • Workout Club": "3,613.6 m² • Workout Club",
-      "Doanh thu hội viên mới (NMS)": "New Membership Sales Revenue (NMS)",
+      "Doanh thu CC": "CC Revenue",
       "Doanh thu HLV cá nhân (PT)": "Personal Training Revenue (PT)",
       "Doanh thu Supplement": "Supplement Revenue",
       "Doanh thu Yoga & Group X (Y&I)": "Yoga & Group X Revenue (Y&I)",
       "Doanh thu Hypoxi": "Hypoxi Revenue",
       "Doanh thu VAS": "VAS Revenue",
       "Doanh thu Califresh & Retail": "Califresh & Retail Revenue",
-      "TỔNG DOANH THU (Total Revenue)": "TOTAL REVENUE",
+      "Total Club Revenue": "TOTAL REVENUE",
       "Chi phí biến đổi theo doanh thu (Total Variable Cost)": "Variable Cost",
       "Chi phí lương GM shown (Staffing Cost)": "GM Shown Staffing Cost",
       "Chi phí lương (Total Staffing cost)": "Total Staffing Cost",
@@ -2735,7 +2799,7 @@
         // Lũy kế toàn bộ 17 tháng
         HVP_DATA.rows.forEach(row => {
           let sum = row.values.reduce((a, b) => a + b, 0);
-          if (row.name === "TỔNG DOANH THU (Total Revenue)") totalRev = sum;
+          if (row.name === "Total Club Revenue") totalRev = sum;
           if (row.name === "LỢI NHUẬN EBITDA") ebitda = sum;
           if (row.name === "TỔNG CHI PHÍ (TOTAL COST)") totalCost = sum;
           
@@ -2750,7 +2814,7 @@
         // Lấy số liệu của tháng được chọn
         HVP_DATA.rows.forEach(row => {
           let val = row.values[mIdx];
-          if (row.name === "TỔNG DOANH THU (Total Revenue)") totalRev = val;
+          if (row.name === "Total Club Revenue") totalRev = val;
           if (row.name === "LỢI NHUẬN EBITDA") ebitda = val;
           if (row.name === "TỔNG CHI PHÍ (TOTAL COST)") totalCost = val;
           
@@ -2884,13 +2948,26 @@
       tbody.innerHTML = "";
 
       const productCategories = [
-        { name: "Doanh thu hội viên mới (NMS)", key: "NMS" },
+        { name: "Doanh thu CC", key: "CC" },
+        { name: "Doanh thu CS", key: "CS" },
+        { name: "Doanh thu Gym", key: "Gym" },
         { name: "Doanh thu HLV cá nhân (PT)", key: "PT" },
-        { name: "Doanh thu Supplement", key: "Supplement" },
-        { name: "Doanh thu Yoga & Group X (Y&I)", key: "Y&I" },
+        { name: "Doanh thu CES", key: "CES" },
+        { name: "Doanh thu Stretching", key: "Stretching" },
+        { name: "Doanh thu Kickfit", key: "Kickfit" },
+        { name: "Doanh thu Mixed", key: "Mixed" },
+        { name: "Doanh thu Pilates", key: "Pilates" },
+        { name: "Doanh thu Physio / Prophysio", key: "Prophysio" },
         { name: "Doanh thu Hypoxi", key: "Hypoxi" },
+        { name: "Doanh thu Yoga", key: "Yoga" },
+        { name: "Doanh thu YI 1:1", key: "YI 1:1" },
+        { name: "Doanh thu Yoga Class", key: "Yoga Class" },
+        { name: "Doanh thu Group X", key: "Group X" },
+        { name: "Doanh thu GX 1:1", key: "GX 1:1" },
+        { name: "Doanh thu Group Class", key: "Group Class" },
+        { name: "Doanh thu Supplement", key: "Supplement" },
         { name: "Doanh thu VAS", key: "VAS" },
-        { name: "Doanh thu Califresh & Retail", key: "Retail" }
+        { name: "Doanh thu Califresh & Retail", key: "Retail & Califresh" }
       ];
 
       productCategories.forEach(prod => {
@@ -3163,7 +3240,7 @@
 
     // Thiết lập biểu đồ xu hướng doanh thu dòng qua các tháng
     function getRevenueValueByIndex(idx) {
-      const row = HVP_DATA.rows.find(r => r.name === "TỔNG DOANH THU (Total Revenue)");
+      const row = HVP_DATA.rows.find(r => r.name === "Total Club Revenue");
       if (!row || idx < 0 || idx >= row.values.length) return null;
       return row.values[idx];
     }
@@ -3217,7 +3294,7 @@
 
       if (isYTD) {
         momBase = targetRev;
-        yoyBase = HVP_DATA.rows.find(r => r.name === "TỔNG DOANH THU (Total Revenue)").values.slice(0, 12).reduce((a, b) => a + b, 0);
+        yoyBase = HVP_DATA.rows.find(r => r.name === "Total Club Revenue").values.slice(0, 12).reduce((a, b) => a + b, 0);
         momLabel = "Target";
         yoyLabel = "YTD 2025";
       } else {
@@ -3354,14 +3431,14 @@
 
       const rows = [];
       [
-        "Doanh thu hội viên mới (NMS)",
+        "Doanh thu CC",
         "Doanh thu HLV cá nhân (PT)",
         "Doanh thu Supplement",
         "Doanh thu Yoga & Group X (Y&I)",
         "Doanh thu Hypoxi",
         "Doanh thu VAS",
         "Doanh thu Califresh & Retail",
-        "TỔNG DOANH THU (Total Revenue)"
+        "Total Club Revenue"
       ].forEach(name => rows.push(makeRow(name, getRowValues(name), name.includes("TỔNG") ? "total" : "normal")));
 
       rows.push(makeRow("Chi phí biến đổi theo doanh thu (Total Variable Cost)", getRowValues(COST_TOTAL_LINES.variable), "total"));
