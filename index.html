@@ -1793,13 +1793,22 @@
       const dateRow = matrix[Math.max(0, headerIndex - 1)] || [];
       const clubIdx = header.findIndex(h => h.toLowerCase() === 'club');
       const catIdx = header.findIndex(h => h.toLowerCase() === 'categories');
-      const codeIdx = header.findIndex(h => h.toLowerCase().includes('p&l'));
+      // DB-PnL.csv has a blank header cell for the P&L Code column in some exports.
+      // Structure is: No. | Club | Categories | [P&L Code] | Act... | Target | MTD | Projection...
+      // So we first try to find an explicit P&L header, then fall back to the column right after Categories.
+      let codeIdx = header.findIndex(h => h.toLowerCase().includes('p&l') || h.toLowerCase() === 'code');
+      if (codeIdx < 0 && catIdx >= 0 && catIdx + 1 < header.length) codeIdx = catIdx + 1;
       const targetIdx = header.findIndex(h => h.toLowerCase() === 'target');
       const mtdIdx = header.findIndex(h => h.toLowerCase() === 'mtd');
       const projIdx = header.findIndex(h => h.toLowerCase() === 'projection');
       const pctIdx = header.findIndex(h => h.toLowerCase().includes('% target'));
       const momIdx = header.findIndex(h => h.toLowerCase() === 'mom');
       const yoyIdx = header.findIndex(h => h.toLowerCase() === 'yoy');
+
+      if (clubIdx < 0 || catIdx < 0 || targetIdx < 0 || mtdIdx < 0 || projIdx < 0) {
+        console.warn('DB-PnL.csv header detected but required columns are missing.', { header, clubIdx, catIdx, codeIdx, targetIdx, mtdIdx, projIdx });
+        return map;
+      }
 
       const actualCols = [];
       header.forEach((h, idx) => {
@@ -1812,7 +1821,7 @@
       matrix.slice(headerIndex + 1).forEach(row => {
         const club = String(row[clubIdx] || '').trim();
         const category = String(row[catIdx] || '').trim();
-        const codeRaw = String(row[codeIdx] || '').trim();
+        const codeRaw = codeIdx >= 0 ? String(row[codeIdx] || '').trim() : '';
         if (!club || (!category && !codeRaw)) return;
         if (VALID_CLUB_SET && VALID_CLUB_SET.size && !VALID_CLUB_SET.has(club)) return;
         if (!isCostPnlCode(codeRaw, category)) return;
