@@ -655,10 +655,10 @@
         </div>
 
         <!-- Charts Dashboard (Trends) -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 xl:grid-cols-5 gap-6">
           
           <!-- Chart 1: Revenue 4-column comparison -->
-          <div class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm xl:col-span-3">
             <div class="flex items-center justify-between mb-4">
               <div>
                 <h4 class="text-base font-bold text-slate-900 dark:text-white">Revenue Trend</h4>
@@ -695,15 +695,16 @@
           </div>
 
           <!-- Chart 2: Expense Distribution (Phân rã lại dựa trên Staffing vs Fixed Cost) -->
-          <div class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between xl:col-span-2">
             <div>
               <h4 class="text-base font-bold text-slate-900 dark:text-white mb-1">Cơ cấu Chi phí GM View</h4>
               <p class="text-xs text-slate-400 mb-4">Level 1 theo P&L: Variable, Staffing, Fixed và Unshown Cost</p>
             </div>
-            <div class="h-56 w-full relative flex items-center justify-center">
-              <canvas id="expenseStructureChart"></canvas>
-            </div>
-            <div class="mt-4 space-y-2 text-xs">
+            <div class="mt-4 grid grid-cols-1 2xl:grid-cols-2 gap-4 items-center">
+              <div class="h-64 w-full relative flex items-center justify-center">
+                <canvas id="expenseStructureChart"></canvas>
+              </div>
+              <div class="space-y-2 text-xs">
               <div class="flex justify-between items-center px-2 py-1.5 bg-slate-50 dark:bg-slate-900 rounded-lg">
                 <span class="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-medium">
                   <span class="w-2.5 h-2.5 rounded-full bg-brand-500"></span> Variable Cost
@@ -727,6 +728,7 @@
                   <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span> Unshown Cost
                 </span>
                 <span id="exp-unshown-pct" class="font-bold">...</span>
+              </div>
               </div>
             </div>
           </div>
