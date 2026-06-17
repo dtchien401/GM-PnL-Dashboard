@@ -704,8 +704,8 @@
         <div id="expenses-breakdown" class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div>
-              <h4 class="text-base font-bold text-slate-900 dark:text-white">Chi tiết Tình hình Chi phí GM (Actual vs Budget)</h4>
-              <p class="text-xs text-slate-400">Level 1 bám theo P&L; các dòng không show chi tiết được gom vào Unshown Cost để tổng chi phí khớp 100%</p>
+              <h4 class="text-base font-bold text-slate-900 dark:text-white">Cost Analysis - Target / MTD / Projection</h4>
+              <p class="text-xs text-slate-400">Dữ liệu chi phí lấy từ DB-PnL.csv: tháng hiện tại hiển thị Target, MTD, Projection và Variance theo góc nhìn kiểm soát ngân sách.</p>
             </div>
             <span class="text-xs bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg text-slate-500 font-semibold">Đơn vị: USD ($)</span>
           </div>
@@ -714,9 +714,10 @@
               <thead class="text-xs uppercase bg-slate-50 dark:bg-slate-900 text-slate-500">
                 <tr>
                   <th class="px-4 py-3 rounded-l-lg">Hạng mục Chi phí</th>
-                  <th class="px-4 py-3 text-right">Chi thực tế (Actual)</th>
-                  <th class="px-4 py-3 text-right">Hạn mức (Budget)</th>
-                  <th class="px-4 py-3 text-right">Chênh lệch (Variance)</th>
+                  <th class="px-4 py-3 text-right">Target</th>
+                  <th class="px-4 py-3 text-right">MTD</th>
+                  <th class="px-4 py-3 text-right">Projection</th>
+                  <th class="px-4 py-3 text-right">Variance</th>
                   <th class="px-4 py-3 text-right rounded-r-lg">Trạng thái Kiểm soát</th>
                 </tr>
               </thead>
@@ -1255,6 +1256,7 @@
     const EXTERNAL_HC_CSV_URL = './DB_HC.csv';
     const EXTERNAL_CHECKIN_CSV_URL = './DB-Checkin.csv';
     const EXTERNAL_GUEST_CSV_URL = './DB_Guest.csv'; // Actual header: GuestShowDateTime, Club, MetricToShow, Sum of Number_Guest
+    const EXTERNAL_PNL_CSV_URL = './DB-PnL.csv';
     const DEFAULT_CLUB_AREA_M2 = 3613.6;
     let RAW_DAILY_RECORDS = [];
     let RAW_LOC_RECORDS = [];
@@ -1265,6 +1267,8 @@
     let RAW_HC_RECORDS = [];
     let RAW_CHECKIN_RECORDS = [];
     let RAW_GUEST_RECORDS = [];
+    let RAW_PNL_RECORDS = [];
+    let PNL_COST_MAP = {}; // month-ready DB-PnL cost map: club -> code -> target/mtd/projection/actuals
     let FIXED_COST_TARGET_MAP = {}; // club -> fixed cost budget lines from fixed-cost.csv
     let STAFFING_COST_MAP = {}; // monthEnd -> club -> { departments, totalCost, totalHC, ptHC }
     let HC_ACTUAL_MAP = {}; // monthEnd -> club -> actual headcount by department from DB_HC.csv. Type is ignored by design.
@@ -1749,6 +1753,158 @@
         return Object.keys(FIXED_COST_TARGET_MAP).length > 0;
       } catch (error) {
         console.warn('Failed to load fixed-cost.csv. Using target.csv fixed-cost budget only.', error);
+        return false;
+      }
+    }
+
+
+    function normalizePnlCode(code) {
+      return String(code || '')
+        .replace(/^\uFEFF/, '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+    }
+
+    function isCostPnlCode(code, category) {
+      const c = normalizePnlCode(code);
+      const cat = String(category || '').toLowerCase();
+      if (!c && !cat) return false;
+      if (c === 'total revenue' || c === 'nms' || c === 'pt' || c === 'supplement' || c === 'y&i' || c === 'hypoxi' || c === 'vas' || c === 'califresh and retail') return false;
+      return c.includes('cost') || c.includes('staffing') || c.includes('repair') || c.includes('supplies') || c.includes('utilities') || c.includes('laundry') || c.includes('security') || c.includes('cleaning') || c.includes('others') || c === 'other oh' || c === 'total variable cost' || c === 'total staffing cost' || c === 'total fixed cost' || c === 'total fixed cost-rental' || c === 'total fixed costs - others' || c === 'total cost' || cat.includes('chi phí') || cat.includes('tổng chi phí');
+    }
+
+    function buildPnlCostMapFromMatrix(text) {
+      const matrix = parseCsvText(text);
+      const map = {};
+      if (!matrix.length) return map;
+
+      let headerIndex = -1;
+      for (let i = 0; i < Math.min(matrix.length, 12); i++) {
+        const row = matrix[i].map(x => String(x || '').replace(/^\uFEFF/, '').trim().toLowerCase());
+        if (row.includes('club') && row.includes('categories')) {
+          headerIndex = i;
+          break;
+        }
+      }
+      if (headerIndex < 0) return map;
+
+      const header = matrix[headerIndex].map(x => String(x || '').replace(/^\uFEFF/, '').trim());
+      const dateRow = matrix[Math.max(0, headerIndex - 1)] || [];
+      const clubIdx = header.findIndex(h => h.toLowerCase() === 'club');
+      const catIdx = header.findIndex(h => h.toLowerCase() === 'categories');
+      const codeIdx = header.findIndex(h => h.toLowerCase().includes('p&l'));
+      const targetIdx = header.findIndex(h => h.toLowerCase() === 'target');
+      const mtdIdx = header.findIndex(h => h.toLowerCase() === 'mtd');
+      const projIdx = header.findIndex(h => h.toLowerCase() === 'projection');
+      const pctIdx = header.findIndex(h => h.toLowerCase().includes('% target'));
+      const momIdx = header.findIndex(h => h.toLowerCase() === 'mom');
+      const yoyIdx = header.findIndex(h => h.toLowerCase() === 'yoy');
+
+      const actualCols = [];
+      header.forEach((h, idx) => {
+        if (String(h).trim().toLowerCase() === 'act') {
+          const monthEnd = parseMonthTokenToMonthEnd(dateRow[idx]);
+          if (monthEnd) actualCols.push({ idx, monthEnd });
+        }
+      });
+
+      matrix.slice(headerIndex + 1).forEach(row => {
+        const club = String(row[clubIdx] || '').trim();
+        const category = String(row[catIdx] || '').trim();
+        const codeRaw = String(row[codeIdx] || '').trim();
+        if (!club || (!category && !codeRaw)) return;
+        if (VALID_CLUB_SET && VALID_CLUB_SET.size && !VALID_CLUB_SET.has(club)) return;
+        if (!isCostPnlCode(codeRaw, category)) return;
+
+        const codeKey = normalizePnlCode(codeRaw || category);
+        const actuals = {};
+        actualCols.forEach(c => actuals[c.monthEnd] = Math.abs(safeNum(row[c.idx])));
+        if (!map[club]) map[club] = {};
+        map[club][codeKey] = {
+          club,
+          category,
+          code: codeRaw,
+          key: codeKey,
+          actuals,
+          target: Math.abs(safeNum(row[targetIdx])),
+          mtd: Math.abs(safeNum(row[mtdIdx])),
+          projection: Math.abs(safeNum(row[projIdx])),
+          pctTarget: String(row[pctIdx] || '').trim(),
+          mom: String(row[momIdx] || '').trim(),
+          yoy: String(row[yoyIdx] || '').trim()
+        };
+      });
+
+      return map;
+    }
+
+    function mergePnlCostMapsForClubs(clubs) {
+      const merged = {};
+      clubs.forEach(club => {
+        const m = PNL_COST_MAP[club] || {};
+        Object.values(m).forEach(line => {
+          if (!merged[line.key]) {
+            merged[line.key] = { ...line, club: 'ALL', actuals: {}, target: 0, mtd: 0, projection: 0, pctTarget: '', mom: '', yoy: '' };
+          }
+          const dst = merged[line.key];
+          dst.target += Number(line.target || 0);
+          dst.mtd += Number(line.mtd || 0);
+          dst.projection += Number(line.projection || 0);
+          Object.entries(line.actuals || {}).forEach(([month, val]) => {
+            dst.actuals[month] = (dst.actuals[month] || 0) + Number(val || 0);
+          });
+        });
+      });
+      return merged;
+    }
+
+    function getCurrentPnlCostLines() {
+      if (!PNL_COST_MAP || !Object.keys(PNL_COST_MAP).length) return null;
+      if (CURRENT_CLUB === 'ALL') {
+        const clubs = RAW_DAILY_RECORDS.length ? getValidDailyClubs() : Object.keys(PNL_COST_MAP);
+        return mergePnlCostMapsForClubs(clubs);
+      }
+      return PNL_COST_MAP[CURRENT_CLUB] || null;
+    }
+
+    function getPnlLine(...codes) {
+      const lines = getCurrentPnlCostLines();
+      if (!lines) return null;
+      for (const c of codes) {
+        const key = normalizePnlCode(c);
+        if (lines[key]) return lines[key];
+      }
+      return null;
+    }
+
+    function getPnlCostSummaryForCurrent() {
+      const total = getPnlLine('TOTAL COST');
+      const variable = getPnlLine('Total Variable Cost');
+      const staffing = getPnlLine('Total Staffing cost');
+      const fixed = getPnlLine('Total Fixed cost');
+      const rental = getPnlLine('Total Fixed cost-rental');
+      const otherFixed = getPnlLine('Total Fixed costs - Others');
+      if (!total && !variable && !staffing && !fixed && !rental) return null;
+      const makeBlank = () => ({ target: 0, mtd: 0, projection: 0 });
+      const get = (line) => line || makeBlank();
+      return { total: get(total), variable: get(variable), staffing: get(staffing), fixed: get(fixed), rental: get(rental), otherFixed: get(otherFixed) };
+    }
+
+    async function loadPnlCsv() {
+      try {
+        const res = await fetch(EXTERNAL_PNL_CSV_URL, { cache: 'no-store' });
+        if (!res.ok) {
+          console.warn(`Cannot load ${EXTERNAL_PNL_CSV_URL}. Cost Analysis will use legacy cost mapping.`, res.status);
+          return false;
+        }
+        const text = await res.text();
+        RAW_PNL_RECORDS = parseCsvText(text);
+        PNL_COST_MAP = buildPnlCostMapFromMatrix(text);
+        console.log(`Loaded DB-PnL cost map for ${Object.keys(PNL_COST_MAP).length} club(s) from ${EXTERNAL_PNL_CSV_URL}.`);
+        return Object.keys(PNL_COST_MAP).length > 0;
+      } catch (error) {
+        console.warn('Failed to load DB-PnL.csv cost mapping.', error);
         return false;
       }
     }
@@ -2258,10 +2414,11 @@
     }
 
     function heatColor(value, min, max) {
-      if (!value || max <= 0) return 'rgba(241, 245, 249, 0.9)';
+      if (!value || max <= 0) return '#f8fafc';
       const ratio = max === min ? 1 : Math.max(0, Math.min(1, (value - min) / (max - min)));
-      const alpha = 0.15 + ratio * 0.75;
-      return `rgba(14, 165, 233, ${alpha})`;
+      const stops = ['#fff0f0', '#ffd6d6', '#ff9999', '#ff5c5c', '#d71920'];
+      const index = Math.min(stops.length - 1, Math.floor(ratio * stops.length));
+      return stops[index];
     }
 
     function renderCheckinHeatmap(selectedPeriod) {
@@ -3269,8 +3426,8 @@
       "SS Serve": "SS Served",
       "PT productivity:": "PT productivity:",
       "SS burn / HC": "SS burn / HC",
-      "Chi tiết Tình hình Chi phí GM (Actual vs Budget)": "GM Cost Breakdown (Actual vs Budget)",
-      "Level 1 bám theo P&L; các dòng không show chi tiết được gom vào Unshown Cost để tổng chi phí khớp 100%": "Level 1 P&L view; lines not shown in detail are grouped into Unshown Cost so total cost reconciles 100%",
+      "Cost Analysis - Target / MTD / Projection": "GM Cost Breakdown (Actual vs Budget)",
+      "Dữ liệu chi phí lấy từ DB-PnL.csv: tháng hiện tại hiển thị Target, MTD, Projection và Variance theo góc nhìn kiểm soát ngân sách.": "Level 1 P&L view; lines not shown in detail are grouped into Unshown Cost so total cost reconciles 100%",
       "Đơn vị: USD ($)": "Unit: USD ($)",
       "Hạng mục Chi phí": "Cost Item",
       "Chi thực tế (Actual)": "Actual Cost",
@@ -3622,11 +3779,21 @@
         ebitdaBadge.className = "px-2.5 py-1 rounded-full font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400";
       }
 
-      // Card 3: TỔNG CHI PHÍ (TOTAL COST)
-      document.getElementById("card-opex-value").innerText = formatUSD(Math.abs(totalCost));
-      let opexRatio = totalRev > 0 ? (Math.abs(totalCost) / totalRev) * 100 : 0;
-      document.getElementById("card-opex-ratio").innerText = opexRatio.toFixed(0) + "%";
-      document.getElementById("card-opex-staff").innerHTML = `${i18n("Lương")}: <strong class="text-slate-700 dark:text-slate-200">${formatUSD(Math.abs(totalStaffing))}</strong>`;
+      // Card 3: TỔNG CHI PHÍ (TOTAL COST) - prefer DB-PnL for current month Target / MTD / Projection.
+      const pnlCostSummary = getPnlCostSummaryForCurrent();
+      if (pnlCostSummary && pnlCostSummary.total) {
+        const projectedCost = pnlCostSummary.total.projection || Math.abs(totalCost);
+        const targetCost = pnlCostSummary.total.target || 0;
+        const varianceCost = targetCost - projectedCost;
+        document.getElementById("card-opex-value").innerText = formatUSD(projectedCost);
+        document.getElementById("card-opex-ratio").innerText = targetCost > 0 ? `${(projectedCost / targetCost * 100).toFixed(0)}% of target` : '-';
+        document.getElementById("card-opex-staff").innerHTML = `${i18n("Variance")}: <strong class="${varianceCost >= 0 ? 'text-emerald-600' : 'text-rose-600'}">${varianceCost >= 0 ? '+' : ''}${formatUSD(varianceCost)}</strong>`;
+      } else {
+        document.getElementById("card-opex-value").innerText = formatUSD(Math.abs(totalCost));
+        let opexRatio = totalRev > 0 ? (Math.abs(totalCost) / totalRev) * 100 : 0;
+        document.getElementById("card-opex-ratio").innerText = opexRatio.toFixed(0) + "%";
+        document.getElementById("card-opex-staff").innerHTML = `${i18n("Lương")}: <strong class="text-slate-700 dark:text-slate-200">${formatUSD(Math.abs(totalStaffing))}</strong>`;
+      }
 
       // Card 4: Metrics per SQM (Doanh thu & Chi phí trên m2)
       let sqmRevValue = totalRev / sizeM2;
@@ -3639,20 +3806,26 @@
       updateRevenueComparisonChart(selectedPeriod, mIdx, isYTD, totalRev, targetRev);
 
       // 3. Cập nhật biểu đồ cấu trúc chi phí theo P&L hierarchy
+      const pnlCostMix = getPnlCostSummaryForCurrent();
       const costSummary = getPLCostSummary(mIdx, isYTD);
-      let totalCostSum = costSummary.total || Math.abs(totalCost);
+      const mixVariable = pnlCostMix ? Number(pnlCostMix.variable.projection || 0) : costSummary.variable;
+      const mixStaffing = pnlCostMix ? Number(pnlCostMix.staffing.projection || 0) : costSummary.staffing;
+      const mixFixed = pnlCostMix ? Number(pnlCostMix.fixed.projection || 0) : costSummary.fixed;
+      const mixRental = pnlCostMix ? Number(pnlCostMix.rental.projection || 0) : 0;
+      const mixTotal = pnlCostMix ? Number(pnlCostMix.total.projection || 0) : (costSummary.total || Math.abs(totalCost));
+      const mixUnshown = Math.max(0, mixTotal - mixVariable - mixStaffing - mixFixed - mixRental);
 
-      let variablePct = totalCostSum > 0 ? (costSummary.variable / totalCostSum * 100) : 0;
-      let staffPct = totalCostSum > 0 ? (costSummary.staffing / totalCostSum * 100) : 0;
-      let fixedPct = totalCostSum > 0 ? (costSummary.fixed / totalCostSum * 100) : 0;
-      let unshownPct = totalCostSum > 0 ? (costSummary.unshown / totalCostSum * 100) : 0;
+      let variablePct = mixTotal > 0 ? (mixVariable / mixTotal * 100) : 0;
+      let staffPct = mixTotal > 0 ? (mixStaffing / mixTotal * 100) : 0;
+      let fixedPct = mixTotal > 0 ? ((mixFixed + mixRental) / mixTotal * 100) : 0;
+      let unshownPct = mixTotal > 0 ? (mixUnshown / mixTotal * 100) : 0;
 
       document.getElementById("exp-variable-pct").innerText = variablePct.toFixed(1) + "%";
       document.getElementById("exp-staff-pct").innerText = staffPct.toFixed(1) + "%";
       document.getElementById("exp-fixed-pct").innerText = fixedPct.toFixed(1) + "%";
       document.getElementById("exp-unshown-pct").innerText = unshownPct.toFixed(1) + "%";
 
-      updateExpenseChart([costSummary.variable, costSummary.staffing, costSummary.fixed, costSummary.unshown]);
+      updateExpenseChart([mixVariable, mixStaffing, mixFixed + mixRental, mixUnshown]);
 
       // 3. Cập nhật Bảng Phân rã Doanh thu Sản phẩm (Product Breakdown)
       updateProductBreakdown(mIdx, isYTD);
@@ -3783,85 +3956,88 @@
       });
     }
 
-    // Cập nhật bảng phân tích chi phí theo P&L hierarchy + drill-down shown/unshown
-    function updateCostBreakdownTable(idx, isYTD) {
+    function costVarianceBadge(target, projection) {
+      if (!target) return { className: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300', text: '-' };
+      const pct = projection / target * 100;
+      if (pct <= 100) return { className: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400', text: 'Within Budget' };
+      if (pct <= 105) return { className: 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400', text: 'Watch' };
+      return { className: 'bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400', text: 'Over Budget' };
+    }
+
+    function renderPnlCostBreakdownTable() {
       const tbody = document.getElementById("cost-breakdown-body");
+      const lines = getCurrentPnlCostLines();
+      if (!tbody || !lines) return false;
       tbody.innerHTML = "";
 
-      const summary = getPLCostSummary(idx, isYTD);
-      const rows = [];
+      const get = (...codes) => getPnlLine(...codes);
+      const rowDefs = [
+        { label: 'TỔNG CHI PHÍ', codes: ['TOTAL COST'], level: 0, type: 'root', prefix: '' },
+        { label: 'Chi phí biến đổi theo doanh thu', codes: ['Total Variable Cost'], level: 1, type: 'parent', prefix: '├─' },
+        { label: 'Chi phí lương', codes: ['Total Staffing cost'], level: 1, type: 'parent', prefix: '├─' },
+        { label: 'Chi phí lương - CC / NMS', codes: ['Staffing - NMS'], level: 2, type: 'child', prefix: '│  ├─' },
+        { label: 'Chi phí lương - PT', codes: ['Staffing - PT'], level: 2, type: 'child', prefix: '│  ├─' },
+        { label: 'Chi phí lương - Hypoxi', codes: ['Staffing - Hypoxi'], level: 2, type: 'child', prefix: '│  ├─' },
+        { label: 'Chi phí lương - Califresh', codes: ['Staffing - CAA'], level: 2, type: 'child', prefix: '│  ├─' },
+        { label: 'Chi phí lương - Spa', codes: ['Staffing - Spa'], level: 2, type: 'child', prefix: '│  ├─' },
+        { label: 'Chi phí lương - Yoga', codes: ['Staffing - Yoga'], level: 2, type: 'child', prefix: '│  ├─' },
+        { label: 'Chi phí lương - GX', codes: ['Staffing - GX'], level: 2, type: 'child', prefix: '│  ├─' },
+        { label: 'Chi phí lương - MS', codes: ['Staffing - MS'], level: 2, type: 'child', prefix: '│  ├─' },
+        { label: 'Chi phí lương - CMO', codes: ['Staffing - CMO'], level: 2, type: 'child', prefix: '│  └─' },
+        { label: 'Chi phí cố định', codes: ['Total Fixed cost'], level: 1, type: 'parent', prefix: '├─' },
+        { label: 'Sửa chữa & bảo trì', codes: ['Repair & maintenance'], level: 2, type: 'child', prefix: '│  ├─' },
+        { label: 'Vật tư tiêu hao', codes: ['Supplies'], level: 2, type: 'child', prefix: '│  ├─' },
+        { label: 'Điện nước & tiện ích', codes: ['Utilities'], level: 2, type: 'child', prefix: '│  ├─' },
+        { label: 'Chi phí chung khác', codes: ['Other OH'], level: 2, type: 'parent', prefix: '│  └─' },
+        { label: 'Giặt khăn', codes: ['Laundry Service'], level: 3, type: 'child', prefix: '│     ├─' },
+        { label: 'Bảo vệ', codes: ['Security'], level: 3, type: 'child', prefix: '│     ├─' },
+        { label: 'Vệ sinh', codes: ['Cleaning_Center'], level: 3, type: 'child', prefix: '│     ├─' },
+        { label: 'Khác', codes: ['Others'], level: 3, type: 'child', prefix: '│     └─' },
+        { label: 'Chi phí thuê', codes: ['Total Fixed cost-rental'], level: 1, type: 'parent', prefix: '├─' },
+        { label: 'Chi phí cố định khác', codes: ['Total Fixed costs - Others'], level: 1, type: 'parent', prefix: '└─' }
+      ];
 
-      rows.push({ name: "Chi phí biến đổi theo doanh thu (Total Variable Cost)", actual: summary.variable, group: "Variable", level: 0, status: "Show" });
-
-      rows.push({ name: "Chi phí lương GM shown (Staffing Cost)", actual: summary.staffing, group: "Staffing_Total", level: 0, status: "Show" });
-      STAFFING_SHOWN_LINES.forEach(line => rows.push({
-        name: line.name,
-        actual: Math.abs(getCostLineValue(line.name, idx, isYTD)),
-        key: line.key,
-        group: "Staffing",
-        level: 1,
-        status: "Shown line"
-      }));
-
-      rows.push({ name: "Chi phí cố định (Total Fixed cost)", actual: summary.fixed, group: "Fixed_Total", level: 0, status: "Show" });
-      FIXED_SHOWN_LINES.forEach(line => {
-        const fixedActual = getCurrentFixedCostAmount(line.key);
-        rows.push({
-          name: line.name,
-          actual: fixedActual !== null ? fixedActual : Math.abs(getCostLineValue(line.name, idx, isYTD)),
-          key: line.key,
-          group: line.isParent ? "OtherOH_Total" : "Fixed",
-          level: line.indent ? 2 : 1,
-          status: line.isParent ? "Show / parent" : "Shown line"
-        });
-      });
-
-      rows.push({ name: "Unshown Cost", actual: summary.unshown, group: "Unshown_Total", level: 0, status: "Gom nhóm" });
-      rows.push({ name: "TỔNG CHI PHÍ (TOTAL COST)", actual: summary.total, group: "Grand_Total", level: 0, status: "Reconciled" });
-
-      rows.forEach(cost => {
-        const absActual = cost.actual || 0;
-        const absBudget = cost.key ? Math.abs(getCostLineBudget(cost.key, idx, isYTD)) : 0;
-        const variance = absBudget - absActual;
-        const varPercent = absBudget > 0 ? (absActual / absBudget * 100) : 0;
-        const varianceDisplay = absBudget > 0 ? `${variance >= 0 ? '+' : ''}${formatUSD(variance)} (${varPercent.toFixed(0)}%)` : "-";
-
-        let badgeClass = "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
-        let statusText = cost.status || "Show";
-        if (cost.group === "Grand_Total") {
-          badgeClass = "bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300";
-        } else if (cost.group === "Unshown" || cost.group === "Unshown_Total") {
-          badgeClass = "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
-        } else if (absBudget > 0 && absActual <= absBudget) {
-          badgeClass = "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400";
-          statusText = "Kiểm soát tốt";
-        } else if (absBudget > 0 && absActual > absBudget) {
-          badgeClass = "bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400";
-          statusText = "Vượt hạn mức";
-        }
-
-        statusText = i18n(statusText);
-        const isTotal = ["Variable", "Staffing_Total", "Fixed_Total", "Unshown_Total", "Grand_Total", "OtherOH_Total"].includes(cost.group);
-        const textWeightClass = isTotal ? "font-bold text-slate-900 dark:text-white" : "text-slate-700 dark:text-slate-300";
-        const bgRowClass = isTotal ? "bg-slate-50 dark:bg-slate-900/40" : "hover:bg-slate-50/40";
-        const indentClass = cost.level === 2 ? "pl-12 text-slate-500 dark:text-slate-400" : cost.level === 1 ? "pl-6 text-slate-600 dark:text-slate-400" : "";
-        const prefix = cost.level === 2 ? "↳ " : cost.level === 1 ? "↳ " : "";
-        const nameDisplay = `<span class="${indentClass}">${prefix}${i18n(cost.name)}</span>`;
+      rowDefs.forEach(def => {
+        const line = get(...def.codes);
+        if (!line && def.type !== 'root') return;
+        const target = Number(line?.target || 0);
+        const mtd = Number(line?.mtd || 0);
+        const projection = Number(line?.projection || 0);
+        const variance = target - projection;
+        const achievement = target > 0 ? projection / target * 100 : 0;
+        const badge = costVarianceBadge(target, projection);
+        const isRoot = def.type === 'root';
+        const isParent = def.type === 'parent';
+        const rowClass = isRoot ? 'bg-slate-100 dark:bg-slate-900/80 border-y border-slate-200 dark:border-slate-700' : isParent ? 'bg-slate-50/70 dark:bg-slate-900/40' : 'hover:bg-slate-50/55 dark:hover:bg-slate-900/40';
+        const labelClass = isRoot ? 'font-extrabold text-slate-900 dark:text-white' : isParent ? 'font-bold text-slate-800 dark:text-slate-200' : 'font-medium text-slate-600 dark:text-slate-400';
+        const indentStyle = `padding-left:${16 + (def.level * 20)}px`;
+        const prefixClass = isRoot ? 'text-transparent' : (isParent ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400 dark:text-slate-500');
+        const varianceClass = variance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
 
         tbody.innerHTML += `
-          <tr class="${bgRowClass} transition-colors">
-            <td class="px-4 py-3 font-semibold ${textWeightClass}">${nameDisplay}</td>
-            <td class="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">${formatUSD(absActual)}</td>
-            <td class="px-4 py-3 text-right text-slate-400">${absBudget > 0 ? formatUSD(absBudget) : '-'}</td>
-            <td class="px-4 py-3 text-right font-medium ${variance >= 0 ? 'text-emerald-500' : 'text-rose-500'}">
-              ${varianceDisplay}
+          <tr class="${rowClass} transition-colors">
+            <td class="px-4 py-3 ${labelClass}" style="${indentStyle}">
+              <span class="inline-block font-mono ${prefixClass} w-12 select-none">${def.prefix}</span>
+              <span>${i18n(def.label)}</span>
+              ${isParent || isRoot ? '<span class="ml-2 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-white/70 dark:bg-slate-950/50 text-slate-400 border border-slate-200 dark:border-slate-800">Total</span>' : ''}
             </td>
-            <td class="px-4 py-3 text-right">
-              <span class="px-2 py-1 rounded-lg text-xs font-bold ${badgeClass}">${statusText}</span>
-            </td>
+            <td class="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">${target ? formatUSD(target) : '-'}</td>
+            <td class="px-4 py-3 text-right text-slate-500 dark:text-slate-400">${mtd ? formatUSD(mtd) : '-'}</td>
+            <td class="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">${projection ? formatUSD(projection) : '-'}</td>
+            <td class="px-4 py-3 text-right font-extrabold ${varianceClass}">${target ? `${variance >= 0 ? '+' : ''}${formatUSD(variance)} (${achievement.toFixed(0)}%)` : '-'}</td>
+            <td class="px-4 py-3 text-right"><span class="px-2 py-1 rounded-lg text-xs font-bold ${badge.className}">${i18n(badge.text)}</span></td>
           </tr>
         `;
       });
+      return true;
+    }
+
+    function updateCostBreakdownTable(idx, isYTD) {
+      if (renderPnlCostBreakdownTable()) return;
+      const tbody = document.getElementById("cost-breakdown-body");
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-slate-400 font-semibold">DB-PnL.csv chưa load được. Vui lòng kiểm tra file trên GitHub.</td></tr>`;
+      }
     }
 
     // Cập nhật PT Efficiency & các block vận hành.
@@ -4420,6 +4596,7 @@
       await loadHeadcountCsv();
       await loadCheckinCsv();
       await loadGuestCsv();
+      await loadPnlCsv();
       if (CURRENT_USER && CURRENT_USER.role === 'GM') {
         rebuildClubSelect(RAW_DAILY_RECORDS);
         CURRENT_CLUB = CURRENT_USER.club;
