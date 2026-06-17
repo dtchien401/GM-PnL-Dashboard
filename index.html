@@ -658,7 +658,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           <!-- Chart 1: Revenue 4-column comparison -->
-          <div class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm lg:col-span-2">
+          <div class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
             <div class="flex items-center justify-between mb-4">
               <div>
                 <h4 class="text-base font-bold text-slate-900 dark:text-white">Revenue Trend</h4>
@@ -734,7 +734,7 @@
         </div>
 
         <!-- Operational Breakdown Row -->
-        <div id="breakdowns" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div id="breakdowns" class="grid grid-cols-1 gap-6">
           
           <!-- Performance breakdown by month / YTD -->
           <div class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm lg:col-span-2">
@@ -756,34 +756,7 @@
             </div>
           </div>
 
-          <!-- PT Efficiency quick card -->
-          <div class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-            <div>
-              <h4 class="text-base font-bold text-slate-900 dark:text-white">PT Efficiency Snapshot</h4>
-              <p class="text-xs text-slate-400 mt-1">Tình hình bán, phục vụ và hiệu suất sử dụng PT trong kỳ</p>
-            </div>
-            <div class="grid grid-cols-2 gap-3 my-5">
-              <div class="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-800">
-                <p class="text-xs text-slate-400">PT Headcount</p>
-                <p id="pt-snap-headcount" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
-              </div>
-              <div class="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-800">
-                <p class="text-xs text-slate-400">PT Utilization</p>
-                <p id="pt-snap-util" class="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">-</p>
-              </div>
-              <div class="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-800">
-                <p class="text-xs text-slate-400">SS Sold</p>
-                <p id="pt-snap-sold" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
-              </div>
-              <div class="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-800">
-                <p class="text-xs text-slate-400">SS Serve</p>
-                <p id="pt-snap-serve" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
-              </div>
-            </div>
-            <div class="p-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-100 dark:border-brand-800/50 rounded-xl">
-              <p class="text-xs text-slate-500 dark:text-slate-300">PT productivity: <strong id="pt-snap-burn-hc" class="text-slate-900 dark:text-white">-</strong> SS burn / HC</p>
-            </div>
-          </div>        </div>
+        </div>
 
         <!-- Section 3: Phân tích sâu các dòng Chi phí thực tế (Expenses Breakdown) -->
         <div id="expenses-breakdown" class="bg-white dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -4318,25 +4291,53 @@
 
         const isRoot = prod.type === "root";
         const isParent = prod.type === "parent";
+        const groupColorMap = {
+          "Total Revenue": { bar: "#334155", badge: "bg-slate-700 text-white", row: "bg-slate-100 dark:bg-slate-900/80" },
+          "CC": { bar: "#d71920", badge: "bg-red-50 text-red-700 border-red-100", row: "bg-red-50/45 dark:bg-red-950/10" },
+          "CS": { bar: "#1e3a5f", badge: "bg-blue-50 text-blue-800 border-blue-100", row: "bg-blue-50/45 dark:bg-blue-950/10" },
+          "Gym": { bar: "#2563eb", badge: "bg-blue-50 text-blue-700 border-blue-100", row: "bg-blue-50/35 dark:bg-blue-950/10" },
+          "PT": { bar: "#60a5fa" },
+          "CES": { bar: "#60a5fa" },
+          "Stretching": { bar: "#60a5fa" },
+          "Kickfit": { bar: "#60a5fa" },
+          "Mixed": { bar: "#60a5fa" },
+          "Pilates": { bar: "#60a5fa" },
+          "Prophysio": { bar: "#60a5fa" },
+          "Hypoxi": { bar: "#f59e0b", badge: "bg-amber-50 text-amber-700 border-amber-100", row: "bg-amber-50/35 dark:bg-amber-950/10" },
+          "Yoga": { bar: "#8b5cf6", badge: "bg-violet-50 text-violet-700 border-violet-100", row: "bg-violet-50/35 dark:bg-violet-950/10" },
+          "YI 1:1": { bar: "#c4b5fd" },
+          "Yoga Class": { bar: "#c4b5fd" },
+          "Group X": { bar: "#10b981", badge: "bg-emerald-50 text-emerald-700 border-emerald-100", row: "bg-emerald-50/35 dark:bg-emerald-950/10" },
+          "GX 1:1": { bar: "#6ee7b7" },
+          "Group Class": { bar: "#6ee7b7" },
+          "Supplement": { bar: "#06b6d4", badge: "bg-cyan-50 text-cyan-700 border-cyan-100", row: "bg-cyan-50/35 dark:bg-cyan-950/10" },
+          "VAS": { bar: "#6366f1", badge: "bg-indigo-50 text-indigo-700 border-indigo-100", row: "bg-indigo-50/35 dark:bg-indigo-950/10" },
+          "Retail & Califresh": { bar: "#ec4899", badge: "bg-pink-50 text-pink-700 border-pink-100", row: "bg-pink-50/35 dark:bg-pink-950/10" }
+        };
+        const styleInfo = groupColorMap[prod.key] || { bar: "#94a3b8" };
         const rowClass = isRoot
-          ? "bg-slate-100 dark:bg-slate-900/80 border-y border-slate-200 dark:border-slate-700"
+          ? `${styleInfo.row || 'bg-slate-100 dark:bg-slate-900/80'} border-y border-slate-200 dark:border-slate-700`
           : isParent
-            ? "bg-slate-50/70 dark:bg-slate-900/40"
+            ? `${styleInfo.row || 'bg-slate-50/70 dark:bg-slate-900/40'}`
             : "hover:bg-slate-50/55 dark:hover:bg-slate-900/40";
         const labelClass = isRoot
           ? "font-extrabold text-slate-900 dark:text-white"
           : isParent
             ? "font-bold text-slate-800 dark:text-slate-200"
             : "font-medium text-slate-600 dark:text-slate-400";
-        const indentStyle = `padding-left:${16 + (prod.level * 20)}px`;
-        const prefixClass = isRoot ? "text-transparent" : (isParent ? "text-brand-600 dark:text-brand-400" : "text-slate-400 dark:text-slate-500");
+        const indentStyle = `padding-left:${16 + (prod.level * 20)}px; border-left:4px solid ${styleInfo.bar};`;
+        const prefixColor = styleInfo.bar;
+        const totalBadgeClass = styleInfo.badge || "bg-white/70 dark:bg-slate-950/50 text-slate-400 border-slate-200 dark:border-slate-800";
 
         tbody.innerHTML += `
           <tr class="${rowClass} transition-colors">
             <td class="px-4 py-3 ${labelClass}" style="${indentStyle}">
-              <span class="inline-block font-mono ${prefixClass} w-12 select-none">${prod.prefix}</span>
-              <span>${i18n(prod.name)}</span>
-              ${isParent || isRoot ? '<span class="ml-2 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-white/70 dark:bg-slate-950/50 text-slate-400 border border-slate-200 dark:border-slate-800">Total</span>' : ''}
+              <span class="inline-block font-mono w-12 select-none" style="color:${isRoot ? 'transparent' : prefixColor}">${prod.prefix}</span>
+              <span class="inline-flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full" style="background:${styleInfo.bar}"></span>
+                <span>${i18n(prod.name)}</span>
+              </span>
+              ${isParent || isRoot ? `<span class="ml-2 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border ${totalBadgeClass}">Total</span>` : ''}
             </td>
             <td class="px-4 py-3 text-right font-bold ${isRoot ? 'text-slate-900 dark:text-white' : ''}">${formatUSD(actualVal)}</td>
             <td class="px-4 py-3 text-right text-slate-400">${formatUSD(targetVal)}</td>
