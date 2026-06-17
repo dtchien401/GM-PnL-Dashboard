@@ -767,6 +767,42 @@
               </table>
             </div>
           </div>
+          <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">Check-in Actual - DB-Checkin</h3>
+                <p class="text-xs text-slate-400 mt-1">Map theo Month + Club. Tổng Checked-in theo kỳ đang chọn để đối chiếu dữ liệu.</p>
+              </div>
+              <span id="checkin-actual-period" class="text-xs bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg text-slate-500 font-semibold">-</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 p-6">
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                <p class="text-xs text-slate-400">Total Check-in</p>
+                <p id="checkin-actual-total" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
+              </div>
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                <p class="text-xs text-slate-400">Avg / Day</p>
+                <p id="checkin-actual-avg-day" class="text-xl font-extrabold text-brand-600 dark:text-brand-400 mt-1">-</p>
+              </div>
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                <p class="text-xs text-slate-400">Data Days</p>
+                <p id="checkin-actual-days" class="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">-</p>
+              </div>
+            </div>
+            <div class="overflow-x-auto custom-scroll px-6 pb-6">
+              <table class="w-full text-sm text-left">
+                <thead class="text-xs uppercase bg-slate-50 dark:bg-slate-900 text-slate-500">
+                  <tr>
+                    <th class="px-4 py-3 rounded-l-lg">Metric</th>
+                    <th class="px-4 py-3">Source</th>
+                    <th class="px-4 py-3 text-right rounded-r-lg">Value</th>
+                  </tr>
+                </thead>
+                <tbody id="checkin-actual-body" class="divide-y divide-slate-100 dark:divide-slate-900"></tbody>
+              </table>
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <!-- PT Efficiency -->
             <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -1193,6 +1229,7 @@
     const EXTERNAL_STAFFING_COST_CSV_URL = './staffing-cost.csv';
     const EXTERNAL_FIXED_COST_CSV_URL = './fixed-cost.csv';
     const EXTERNAL_HC_CSV_URL = './DB_HC.csv';
+    const EXTERNAL_CHECKIN_CSV_URL = './DB-Checkin.csv';
     const DEFAULT_CLUB_AREA_M2 = 3613.6;
     let RAW_DAILY_RECORDS = [];
     let RAW_LOC_RECORDS = [];
@@ -1200,9 +1237,11 @@
     let RAW_STAFFING_COST_RECORDS = [];
     let RAW_FIXED_COST_RECORDS = [];
     let RAW_HC_RECORDS = [];
+    let RAW_CHECKIN_RECORDS = [];
     let FIXED_COST_TARGET_MAP = {}; // club -> fixed cost budget lines from fixed-cost.csv
     let STAFFING_COST_MAP = {}; // monthEnd -> club -> { departments, totalCost, totalHC, ptHC }
     let HC_ACTUAL_MAP = {}; // monthEnd -> club -> actual headcount by department from DB_HC.csv. Type is ignored by design.
+    let CHECKIN_MAP = {}; // monthEnd -> club -> total checked-in from DB-Checkin.csv.
     let CLUB_AREA_MAP = {};
     let VALID_CLUB_SET = new Set();
     let CLUB_TARGET_MAP = {};
@@ -1960,6 +1999,116 @@
       } catch (error) {
         console.warn('Failed to load DB_HC.csv. Using existing headcount data.', error);
         return false;
+      }
+    }
+
+    function buildCheckinMap(records) {
+      const map = {};
+      records.forEach(r => {
+        const monthEnd = parseMonthTokenToMonthEnd(readField(r, ['Month', 'MONTH']));
+        const club = String(readField(r, ['Club', 'CLUB']) || '').trim();
+        if (!monthEnd || !club || club.toLowerCase() === 'club') return;
+        if (VALID_CLUB_SET && VALID_CLUB_SET.size && !VALID_CLUB_SET.has(club)) return;
+
+        const checkedIn = safeNum(readField(r, ['Checked-in', 'Checked in', 'Check-in', 'Checkin']));
+        const dateKey = String(readField(r, ['Date', 'DATE']) || '').trim();
+
+        if (!map[monthEnd]) map[monthEnd] = {};
+        if (!map[monthEnd][club]) map[monthEnd][club] = { total: 0, days: new Set() };
+        map[monthEnd][club].total += checkedIn;
+        if (dateKey) map[monthEnd][club].days.add(dateKey);
+      });
+
+      Object.keys(map).forEach(monthEnd => {
+        Object.keys(map[monthEnd]).forEach(club => {
+          const item = map[monthEnd][club];
+          item.dayCount = item.days ? item.days.size : 0;
+          delete item.days;
+        });
+      });
+      return map;
+    }
+
+    function getCheckinScopeForMonth(monthEnd) {
+      const monthMap = CHECKIN_MAP[monthEnd];
+      if (!monthMap) return null;
+
+      if (CURRENT_CLUB === 'ALL') {
+        const out = { total: 0, dayCount: 0 };
+        const allDays = new Set();
+        Object.entries(monthMap).forEach(([club, value]) => {
+          if (VALID_CLUB_SET && VALID_CLUB_SET.size && !VALID_CLUB_SET.has(club)) return;
+          out.total += value.total || 0;
+          out.dayCount = Math.max(out.dayCount, value.dayCount || 0);
+        });
+        return out;
+      }
+      return monthMap[CURRENT_CLUB] || null;
+    }
+
+    function getLatestCheckinScope() {
+      const months = Object.keys(CHECKIN_MAP || {}).sort();
+      if (!months.length) return null;
+      return getCheckinScopeForMonth(months[months.length - 1]);
+    }
+
+    async function loadCheckinCsv() {
+      try {
+        const res = await fetch(EXTERNAL_CHECKIN_CSV_URL, { cache: 'no-store' });
+        if (!res.ok) {
+          console.warn(`Cannot load ${EXTERNAL_CHECKIN_CSV_URL}. Check-in block will show no data.`, res.status);
+          return false;
+        }
+        const text = await res.text();
+        RAW_CHECKIN_RECORDS = csvToObjectsAutoHeader(text, ['Month', 'Date', 'Club', 'Checked-in']);
+        CHECKIN_MAP = buildCheckinMap(RAW_CHECKIN_RECORDS);
+        console.log(`Loaded check-in for ${Object.keys(CHECKIN_MAP).length} month(s) from ${EXTERNAL_CHECKIN_CSV_URL}.`);
+        return Object.keys(CHECKIN_MAP).length > 0;
+      } catch (error) {
+        console.warn('Failed to load DB-Checkin.csv.', error);
+        return false;
+      }
+    }
+
+    function updateCheckinActual(selectedPeriod) {
+      const setText = (id, value) => { const el = document.getElementById(id); if (el) el.innerText = value; };
+      const noDataText = currentLang === "en" ? "No data" : "Chưa có data";
+
+      let total = 0;
+      let days = 0;
+      if (selectedPeriod === 'YTD') {
+        HVP_DATA.months.forEach(monthEnd => {
+          const item = getCheckinScopeForMonth(monthEnd);
+          if (!item) return;
+          total += item.total || 0;
+          days += item.dayCount || 0;
+        });
+      } else {
+        const item = getCheckinScopeForMonth(selectedPeriod);
+        total = item ? (item.total || 0) : null;
+        days = item ? (item.dayCount || 0) : null;
+      }
+
+      const avg = total && days ? total / days : null;
+      setText('checkin-actual-period', selectedPeriod === 'YTD' ? 'YTD' : getMonthShortLabel(selectedPeriod));
+      setText('checkin-actual-total', total !== null && total !== undefined ? formatNumber(total) : noDataText);
+      setText('checkin-actual-avg-day', avg ? formatNumber(avg) : noDataText);
+      setText('checkin-actual-days', days !== null && days !== undefined ? formatNumber(days) : noDataText);
+
+      const body = document.getElementById('checkin-actual-body');
+      if (body) {
+        const rows = [
+          ['Total Check-in', 'DB-Checkin.Checked-in', total !== null && total !== undefined ? formatNumber(total) : noDataText],
+          ['Avg Check-in / Day', 'Total Check-in / Data Days', avg ? formatNumber(avg) : noDataText],
+          ['Data Days', 'Distinct Date rows', days !== null && days !== undefined ? formatNumber(days) : noDataText]
+        ];
+        body.innerHTML = rows.map(r => `
+          <tr class="hover:bg-slate-50/60 dark:hover:bg-slate-900/40 transition-colors">
+            <td class="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">${i18n(r[0])}</td>
+            <td class="px-4 py-3 text-slate-400">${i18n(r[1])}</td>
+            <td class="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">${r[2]}</td>
+          </tr>
+        `).join('');
       }
     }
 
@@ -3047,6 +3196,7 @@
 
       // 4. Cập nhật PT Efficiency & Member Activity
       updateOperatingKPIs(selectedPeriod);
+      updateCheckinActual(selectedPeriod);
 
       // 5. Cập nhật Bảng Chi phí thực tế GM mới nhất (Cost Items table)
       updateCostBreakdownTable(mIdx, isYTD);
@@ -3249,45 +3399,9 @@
       });
     }
 
-
-    function renderHeadcountActual(period) {
-      const hc = getHeadcountScopeForMonth(period) || getLatestHeadcountScope();
-      const noDataText = currentLang === 'en' ? 'No data' : 'Chưa có dữ liệu';
-      const put = (id, value) => { const el = document.getElementById(id); if (el) el.innerText = value; };
-      put('hc-actual-period', hc ? `${CURRENT_CLUB === 'ALL' ? 'All Clubs' : CURRENT_CLUB} • ${period}` : noDataText);
-      put('hc-actual-total', hc ? formatNumber(hc.total) : '-');
-      put('hc-actual-sales', hc ? formatNumber(hc.production) : '-');
-      put('hc-actual-pt', hc ? formatNumber(hc.pt) : '-');
-      put('hc-actual-service', hc ? formatNumber(hc.serviceHC) : '-');
-
-      const tbody = document.getElementById('hc-actual-body');
-      if (!tbody) return;
-      const rows = hc ? [
-        ['CMO', hc.cmo],
-        ['GROUP X', hc.gx],
-        ['HYPOXI', hc.hypoxi],
-        ['MEMBER SERVICES', hc.ms],
-        ['NUTRITION & RETAIL', hc.retail],
-        ['PERSONAL TRAINER', hc.pt],
-        ['PRODUCTION / Sales', hc.production],
-        ['PXU', hc.pxu],
-        ['RecovRX', hc.recovrx],
-        ['YOGA', hc.yoga],
-        ['CALIFRESH', hc.califresh],
-        ['TOTAL', hc.total]
-      ] : [[noDataText, null]];
-      tbody.innerHTML = rows.map(([name, value]) => `
-        <tr class="hover:bg-slate-50/40 dark:hover:bg-slate-900/40 transition-colors">
-          <td class="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">${name}</td>
-          <td class="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">${value === null ? '-' : formatNumber(value)}</td>
-        </tr>
-      `).join('');
-    }
-
     // Cập nhật PT Efficiency & các block vận hành.
     // Rule: không dùng dữ liệu demo/fallback. Field nào chưa có source thật sẽ hiển thị "Chưa có data".
     function updateOperatingKPIs(selectedPeriod) {
-      renderHeadcountActual(selectedPeriod);
       const data = OPERATING_DATA[selectedPeriod] || null;
       const pt = data?.pt || {};
       const guest = data?.guest || {};
@@ -3856,6 +3970,7 @@
       await loadDailyCsvIntoDashboard();
       await loadStaffingCostCsv();
       await loadHeadcountCsv();
+      await loadCheckinCsv();
       if (CURRENT_USER && CURRENT_USER.role === 'GM') {
         rebuildClubSelect(RAW_DAILY_RECORDS);
         CURRENT_CLUB = CURRENT_USER.club;
