@@ -2948,26 +2948,27 @@
       tbody.innerHTML = "";
 
       const productCategories = [
-        { name: "Doanh thu CC", key: "CC" },
-        { name: "Doanh thu CS", key: "CS" },
-        { name: "Doanh thu Gym", key: "Gym" },
-        { name: "Doanh thu HLV cá nhân (PT)", key: "PT" },
-        { name: "Doanh thu CES", key: "CES" },
-        { name: "Doanh thu Stretching", key: "Stretching" },
-        { name: "Doanh thu Kickfit", key: "Kickfit" },
-        { name: "Doanh thu Mixed", key: "Mixed" },
-        { name: "Doanh thu Pilates", key: "Pilates" },
-        { name: "Doanh thu Physio / Prophysio", key: "Prophysio" },
-        { name: "Doanh thu Hypoxi", key: "Hypoxi" },
-        { name: "Doanh thu Yoga", key: "Yoga" },
-        { name: "Doanh thu YI 1:1", key: "YI 1:1" },
-        { name: "Doanh thu Yoga Class", key: "Yoga Class" },
-        { name: "Doanh thu Group X", key: "Group X" },
-        { name: "Doanh thu GX 1:1", key: "GX 1:1" },
-        { name: "Doanh thu Group Class", key: "Group Class" },
-        { name: "Doanh thu Supplement", key: "Supplement" },
-        { name: "Doanh thu VAS", key: "VAS" },
-        { name: "Doanh thu Califresh & Retail", key: "Retail & Califresh" }
+        { name: "Total Club Revenue", key: "Total Revenue", level: 0, type: "root", prefix: "" },
+        { name: "Doanh thu CC", key: "CC", level: 1, type: "parent", prefix: "├─" },
+        { name: "Doanh thu CS", key: "CS", level: 1, type: "parent", prefix: "└─" },
+        { name: "Doanh thu Gym", key: "Gym", level: 2, type: "parent", prefix: "   ├─" },
+        { name: "Doanh thu HLV cá nhân (PT)", key: "PT", level: 3, type: "child", prefix: "   │  ├─" },
+        { name: "Doanh thu CES", key: "CES", level: 3, type: "child", prefix: "   │  ├─" },
+        { name: "Doanh thu Stretching", key: "Stretching", level: 3, type: "child", prefix: "   │  ├─" },
+        { name: "Doanh thu Kickfit", key: "Kickfit", level: 3, type: "child", prefix: "   │  ├─" },
+        { name: "Doanh thu Mixed", key: "Mixed", level: 3, type: "child", prefix: "   │  ├─" },
+        { name: "Doanh thu Pilates", key: "Pilates", level: 3, type: "child", prefix: "   │  ├─" },
+        { name: "Doanh thu Physio / Prophysio", key: "Prophysio", level: 3, type: "child", prefix: "   │  └─" },
+        { name: "Doanh thu Hypoxi", key: "Hypoxi", level: 2, type: "parent", prefix: "   ├─" },
+        { name: "Doanh thu Yoga", key: "Yoga", level: 2, type: "parent", prefix: "   ├─" },
+        { name: "Doanh thu YI 1:1", key: "YI 1:1", level: 3, type: "child", prefix: "   │  ├─" },
+        { name: "Doanh thu Yoga Class", key: "Yoga Class", level: 3, type: "child", prefix: "   │  └─" },
+        { name: "Doanh thu Group X", key: "Group X", level: 2, type: "parent", prefix: "   ├─" },
+        { name: "Doanh thu GX 1:1", key: "GX 1:1", level: 3, type: "child", prefix: "   │  ├─" },
+        { name: "Doanh thu Group Class", key: "Group Class", level: 3, type: "child", prefix: "   │  └─" },
+        { name: "Doanh thu Supplement", key: "Supplement", level: 2, type: "parent", prefix: "   ├─" },
+        { name: "Doanh thu VAS", key: "VAS", level: 2, type: "parent", prefix: "   ├─" },
+        { name: "Doanh thu Califresh & Retail", key: "Retail & Califresh", level: 2, type: "parent", prefix: "   └─" }
       ];
 
       productCategories.forEach(prod => {
@@ -2985,10 +2986,29 @@
         if (achievement >= 95) colorClass = "text-emerald-500";
         else if (achievement >= 80) colorClass = "text-amber-500";
 
+        const isRoot = prod.type === "root";
+        const isParent = prod.type === "parent";
+        const rowClass = isRoot
+          ? "bg-slate-100 dark:bg-slate-900/80 border-y border-slate-200 dark:border-slate-700"
+          : isParent
+            ? "bg-slate-50/70 dark:bg-slate-900/40"
+            : "hover:bg-slate-50/55 dark:hover:bg-slate-900/40";
+        const labelClass = isRoot
+          ? "font-extrabold text-slate-900 dark:text-white"
+          : isParent
+            ? "font-bold text-slate-800 dark:text-slate-200"
+            : "font-medium text-slate-600 dark:text-slate-400";
+        const indentStyle = `padding-left:${16 + (prod.level * 20)}px`;
+        const prefixClass = isRoot ? "text-transparent" : (isParent ? "text-brand-600 dark:text-brand-400" : "text-slate-400 dark:text-slate-500");
+
         tbody.innerHTML += `
-          <tr class="hover:bg-slate-50/55 dark:hover:bg-slate-900/40 transition-colors">
-            <td class="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">${i18n(prod.name)}</td>
-            <td class="px-4 py-3 text-right font-bold">${formatUSD(actualVal)}</td>
+          <tr class="${rowClass} transition-colors">
+            <td class="px-4 py-3 ${labelClass}" style="${indentStyle}">
+              <span class="inline-block font-mono ${prefixClass} w-12 select-none">${prod.prefix}</span>
+              <span>${i18n(prod.name)}</span>
+              ${isParent || isRoot ? '<span class="ml-2 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full bg-white/70 dark:bg-slate-950/50 text-slate-400 border border-slate-200 dark:border-slate-800">Total</span>' : ''}
+            </td>
+            <td class="px-4 py-3 text-right font-bold ${isRoot ? 'text-slate-900 dark:text-white' : ''}">${formatUSD(actualVal)}</td>
             <td class="px-4 py-3 text-right text-slate-400">${formatUSD(targetVal)}</td>
             <td class="px-4 py-3 text-right font-extrabold ${colorClass}">${achievement.toFixed(1)}%</td>
           </tr>
