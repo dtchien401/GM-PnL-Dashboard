@@ -1249,7 +1249,7 @@
     const EXTERNAL_DAILY_CSV_URL = './daily.csv';
     const EXTERNAL_LOC_CSV_URL = './LOC.csv';
     const EXTERNAL_TARGET_CSV_URL = './target.csv';
-    const EXTERNAL_CLUB_INFO_CSV_URL = './Target-revenue.csv';
+    const EXTERNAL_CLUB_INFO_CSV_URL = './Club_GM.csv';
     const EXTERNAL_STAFFING_COST_CSV_URL = './staffing-cost.csv';
     const EXTERNAL_FIXED_COST_CSV_URL = './fixed-cost.csv';
     const EXTERNAL_HC_CSV_URL = './DB_HC.csv';
@@ -1273,7 +1273,7 @@
     let CLUB_AREA_MAP = {};
     let VALID_CLUB_SET = new Set();
     let CLUB_TARGET_MAP = {};
-    let CLUB_INFO_MAP = {}; // club -> GM/Region/BM info from Target-revenue.csv
+    let CLUB_INFO_MAP = {}; // club -> GM/Region/BM info from Club_GM.csv
     let CURRENT_CLUB = 'ALL';
 
     const AUTH_USERS = [
@@ -1576,7 +1576,7 @@
         console.log(`Loaded ${Object.keys(CLUB_INFO_MAP).length} club/GM mappings from ${EXTERNAL_CLUB_INFO_CSV_URL}.`);
         return Object.keys(CLUB_INFO_MAP).length > 0;
       } catch (error) {
-        console.warn('Failed to load Target-revenue.csv club/GM mapping.', error);
+        console.warn('Failed to load Club_GM.csv club/GM mapping.', error);
         updateClubGMHeader();
         return false;
       }
