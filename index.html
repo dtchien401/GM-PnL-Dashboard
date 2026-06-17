@@ -904,7 +904,7 @@
             <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
               <div class="p-6 border-b border-slate-200 dark:border-slate-800">
                 <h3 class="text-base font-bold text-slate-900 dark:text-white">Guest Traffic - DB_Guest</h3>
-                <p class="text-xs text-slate-400 mt-1">Chỉ map lượng show guest traffic theo source; không tính NMU hoặc closing.</p>
+                <p class="text-xs text-slate-400 mt-1">Map DB_Guest actual traffic theo source; không tính NMU hoặc closing.</p>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 p-6">
                 <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
@@ -1253,7 +1253,7 @@
     const EXTERNAL_FIXED_COST_CSV_URL = './fixed-cost.csv';
     const EXTERNAL_HC_CSV_URL = './DB_HC.csv';
     const EXTERNAL_CHECKIN_CSV_URL = './DB-Checkin.csv';
-    const EXTERNAL_GUEST_CSV_URL = './DB_Guest.csv';
+    const EXTERNAL_GUEST_CSV_URL = './DB_Guest.csv'; // Actual header: GuestShowDateTime, Club, MetricToShow, Sum of Number_Guest
     const DEFAULT_CLUB_AREA_M2 = 3613.6;
     let RAW_DAILY_RECORDS = [];
     let RAW_LOC_RECORDS = [];
@@ -2009,6 +2009,66 @@
       });
     }
 
+    function updateHeadcountActual(selectedPeriod) {
+      const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = value;
+      };
+      const body = document.getElementById('hc-actual-body');
+      const monthEnd = selectedPeriod === 'YTD'
+        ? (HVP_DATA.months[HVP_DATA.months.length - 1] || '')
+        : selectedPeriod;
+      const hc = getHeadcountScopeForMonth(monthEnd) || getLatestHeadcountScope();
+
+      setText('hc-actual-period', selectedPeriod === 'YTD' ? `Latest HC snapshot: ${monthEnd || '-'}` : (monthEnd || '-'));
+
+      if (!hc) {
+        setText('hc-actual-total', '-');
+        setText('hc-actual-sales', '-');
+        setText('hc-actual-pt', '-');
+        setText('hc-actual-service', '-');
+        if (body) body.innerHTML = `<tr><td colspan="2" class="px-4 py-4 text-center text-slate-400">No DB_HC data matched for this club/month.</td></tr>`;
+        return;
+      }
+
+      const fmtHC = (v) => {
+        const n = Number(v) || 0;
+        return n ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
+      };
+
+      setText('hc-actual-total', fmtHC(hc.total));
+      setText('hc-actual-sales', fmtHC(hc.production));
+      setText('hc-actual-pt', fmtHC(hc.pt));
+      setText('hc-actual-service', fmtHC(hc.serviceHC));
+
+      const rows = [
+        ['CMO', hc.cmo],
+        ['GROUP X', hc.gx],
+        ['HYPOXI', hc.hypoxi],
+        ['MEMBER SERVICES', hc.ms],
+        ['NUTRITION & RETAIL', hc.retail],
+        ['PERSONAL TRAINER', hc.pt],
+        ['PRODUCTION / Sales', hc.production],
+        ['PXU', hc.pxu],
+        ['RecovRX', hc.recovrx],
+        ['YOGA', hc.yoga],
+        ['CALIFRESH', hc.califresh],
+        ['TOTAL', hc.total]
+      ];
+
+      if (body) {
+        body.innerHTML = rows.map(([label, value], idx) => {
+          const isTotal = label === 'TOTAL';
+          return `
+            <tr class="${isTotal ? 'bg-slate-50 dark:bg-slate-900/50 font-extrabold' : ''}">
+              <td class="px-4 py-3 ${isTotal ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'}">${label}</td>
+              <td class="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">${fmtHC(value)}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
     async function loadHeadcountCsv() {
       try {
         const res = await fetch(EXTERNAL_HC_CSV_URL, { cache: 'no-store' });
@@ -2017,7 +2077,7 @@
           return false;
         }
         const text = await res.text();
-        RAW_HC_RECORDS = csvToObjectsAutoHeader(text, ['Month', 'Club', 'Type', 'PERSONAL TRAINER', 'Total']);
+        RAW_HC_RECORDS = csvToObjectsAutoHeader(text, ['Month', 'Club', 'PERSONAL TRAINER', 'PRODUCTION', 'Total']);
         HC_ACTUAL_MAP = buildHeadcountActualMap(RAW_HC_RECORDS);
         applyHeadcountActualForCurrentClub();
         console.log(`Loaded actual headcount for ${Object.keys(HC_ACTUAL_MAP).length} month(s) from ${EXTERNAL_HC_CSV_URL}. Type column intentionally ignored.`);
@@ -2223,18 +2283,20 @@
     }
 
 
-    const GUEST_SOURCE_ORDER = ['Sales', 'OL', 'Media', 'Referral', 'LWT', 'PNS', 'TM'];
+    const GUEST_SOURCE_ORDER = ['Sales', 'OL', 'Media', 'Referral', 'LWT', 'PNS', 'TM', 'ZNS'];
 
     function normalizeGuestSource(source) {
-      const key = normalizeTextKey(source);
+      const raw = String(source || '').trim();
+      const key = normalizeTextKey(raw);
       if (key === 'sales') return 'Sales';
       if (key === 'ol' || key === 'online' || key === 'online lead') return 'OL';
       if (key === 'media' || key === 'mkt' || key === 'marketing') return 'Media';
-      if (key === 'referral' || key === 'referal') return 'Referral';
-      if (key === 'lwt' || key === 'live well together') return 'LWT';
+      if (key === 'referral' || key === 'referal' || key.includes('referral')) return 'Referral';
+      if (key === 'lwt' || key.includes('live well together') || key.startsWith('lwt')) return 'LWT';
       if (key === 'pns') return 'PNS';
       if (key === 'tm') return 'TM';
-      return String(source || '').trim() || 'Other';
+      if (key.includes('zns')) return 'ZNS';
+      return raw || 'Other';
     }
 
     function addGuestMetricToBucket(bucket, source, value, dateKey) {
@@ -3141,7 +3203,7 @@
       "Leavers": "Leavers",
       "Net Movement": "Net Movement",
       "Guest": "Guest",
-      "Chỉ map lượng show guest traffic theo source; không tính NMU hoặc closing.": "Map guest traffic by source only; no NMU or closing calculation.",
+      "Map DB_Guest actual traffic theo source; không tính NMU hoặc closing.": "Map guest traffic by source only; no NMU or closing calculation.",
       "Total SHOW": "Total SHOW",
       "# Traffic": "# Traffic",
       "NMU": "NMU",
@@ -3509,6 +3571,7 @@
 
       // 4. Cập nhật PT Efficiency & Member Activity
       updateOperatingKPIs(selectedPeriod);
+      updateHeadcountActual(selectedPeriod);
       updateCheckinActual(selectedPeriod);
       updateGuestTraffic(selectedPeriod);
 
