@@ -541,6 +541,19 @@
               </div>
             </div>
 
+            <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 mb-6">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <div>
+                  <h4 class="text-base font-extrabold text-slate-900 dark:text-white">BOD Performance Mix Chart</h4>
+                  <p class="text-xs text-slate-400 mt-1">Bar = Revenue MTD & Target MTD • Line = Achievement %. Sorted by Achievement %.</p>
+                </div>
+                <span class="text-xs bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-lg text-slate-500 font-bold">Top 15 clubs</span>
+              </div>
+              <div class="h-80 w-full relative">
+                <canvas id="bodAchievementComboChart"></canvas>
+              </div>
+            </div>
+
             <div class="overflow-x-auto custom-scroll">
               <table class="w-full text-sm text-left">
                 <thead class="text-xs uppercase bg-slate-50 dark:bg-slate-900 text-slate-500">
@@ -3173,6 +3186,104 @@
       return clubs.filter(c => c && c !== 'ALL').sort();
     }
 
+
+    function renderBodAchievementComboChart(rows) {
+      const canvas = document.getElementById('bodAchievementComboChart');
+      if (!canvas || typeof Chart === 'undefined') return;
+      const topRows = (rows || []).slice(0, 15);
+      if (bodAchievementComboChart) {
+        bodAchievementComboChart.destroy();
+        bodAchievementComboChart = null;
+      }
+      const ctx = canvas.getContext('2d');
+      bodAchievementComboChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: topRows.map(r => r.club),
+          datasets: [
+            {
+              type: 'bar',
+              label: 'Rev MTD',
+              data: topRows.map(r => r.revenue),
+              backgroundColor: 'rgba(215, 25, 32, 0.78)',
+              borderColor: 'rgba(215, 25, 32, 1)',
+              borderWidth: 1,
+              borderRadius: 6,
+              yAxisID: 'y'
+            },
+            {
+              type: 'bar',
+              label: 'Target MTD',
+              data: topRows.map(r => r.targetMtd),
+              backgroundColor: 'rgba(148, 163, 184, 0.22)',
+              borderColor: 'rgba(148, 163, 184, 0.65)',
+              borderWidth: 1,
+              borderRadius: 6,
+              yAxisID: 'y'
+            },
+            {
+              type: 'line',
+              label: 'Achievement %',
+              data: topRows.map(r => r.achievement),
+              borderColor: 'rgba(2, 132, 199, 1)',
+              backgroundColor: 'rgba(2, 132, 199, 0.12)',
+              borderWidth: 3,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              tension: 0.25,
+              yAxisID: 'y1'
+            },
+            {
+              type: 'line',
+              label: '100% Target Line',
+              data: topRows.map(() => 100),
+              borderColor: 'rgba(16, 185, 129, 0.85)',
+              borderDash: [6, 6],
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0,
+              yAxisID: 'y1'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true } },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const label = context.dataset.label || '';
+                  const v = Number(context.raw || 0);
+                  if (label.includes('%') || label.includes('Line')) return `${label}: ${v.toFixed(1)}%`;
+                  return `${label}: ${formatUSD(v)}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { weight: '700' } } },
+            y: {
+              beginAtZero: true,
+              position: 'left',
+              ticks: { callback: value => `$${Number(value).toLocaleString()}` },
+              title: { display: true, text: 'USD' }
+            },
+            y1: {
+              beginAtZero: true,
+              position: 'right',
+              grid: { drawOnChartArea: false },
+              ticks: { callback: value => `${Number(value).toFixed(0)}%` },
+              title: { display: true, text: 'Achievement %' },
+              suggestedMax: Math.max(120, ...topRows.map(r => r.achievement || 0))
+            }
+          }
+        }
+      });
+    }
+
     function renderBodView(selectedPeriod) {
       const section = document.getElementById('bod-view-section');
       if (!section) return;
@@ -3225,6 +3336,8 @@
       setText('bod-checkin', formatNumber(totals.checkin));
       setText('bod-guest', formatNumber(totals.guest));
       setText('bod-hc', formatNumber(totals.hc));
+
+      renderBodAchievementComboChart(rows);
 
       const tbody = document.getElementById('bod-club-ranking-body');
       if (!tbody) return;
@@ -3647,6 +3760,7 @@
     let revTrendChart = null;
     let expStructureChart = null;
     let guestSourceChart = null;
+    let bodAchievementComboChart = null;
 
     // Language toggle (VI / EN)
     let currentLang = localStorage.getItem("hvp_lang") || "vi";
