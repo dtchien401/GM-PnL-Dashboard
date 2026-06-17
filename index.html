@@ -900,36 +900,41 @@
           </div>
 
           <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <!-- Guest Funnel -->
+            <!-- Guest Traffic -->
             <div class="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
               <div class="p-6 border-b border-slate-200 dark:border-slate-800">
-                <h3 class="text-base font-bold text-slate-900 dark:text-white">Guest</h3>
-                <p class="text-xs text-slate-400 mt-1">Theo dõi traffic, NMU và tỷ lệ closing từ guest thành khách hàng</p>
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">Guest Traffic - DB_Guest</h3>
+                <p class="text-xs text-slate-400 mt-1">Chỉ map lượng show guest traffic theo source; không tính NMU hoặc closing.</p>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 p-6">
                 <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
-                  <p class="text-xs text-slate-400">Total SHOW</p>
+                  <p class="text-xs text-slate-400">Total Guest Traffic</p>
                   <p id="guest-kpi-show" class="text-xl font-extrabold text-slate-900 dark:text-white mt-1">-</p>
-                  <p class="text-[11px] text-slate-400 mt-1"># Traffic</p>
+                  <p class="text-[11px] text-slate-400 mt-1">DB_Guest total</p>
                 </div>
                 <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
-                  <p class="text-xs text-slate-400">NMU</p>
-                  <p id="guest-kpi-nmu" class="text-xl font-extrabold text-brand-600 dark:text-brand-400 mt-1">-</p>
-                  <p class="text-[11px] text-slate-400 mt-1"># Clients</p>
+                  <p class="text-xs text-slate-400">Avg / Day</p>
+                  <p id="guest-kpi-avg-day" class="text-xl font-extrabold text-brand-600 dark:text-brand-400 mt-1">-</p>
+                  <p class="text-[11px] text-slate-400 mt-1">Traffic / data days</p>
                 </div>
                 <div class="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/50">
-                  <p class="text-xs text-emerald-600 dark:text-emerald-400">% Closing NMU</p>
-                  <p id="guest-kpi-closing" class="text-xl font-extrabold text-emerald-700 dark:text-emerald-300 mt-1">-</p>
-                  <p class="text-[11px] text-emerald-600/70 dark:text-emerald-400/70 mt-1">%</p>
+                  <p class="text-xs text-emerald-600 dark:text-emerald-400">Data Days</p>
+                  <p id="guest-kpi-days" class="text-xl font-extrabold text-emerald-700 dark:text-emerald-300 mt-1">-</p>
+                  <p class="text-[11px] text-emerald-600/70 dark:text-emerald-400/70 mt-1">Distinct dates</p>
+                </div>
+              </div>
+              <div class="px-6 pb-4">
+                <div class="h-56 w-full relative">
+                  <canvas id="guestSourceChart"></canvas>
                 </div>
               </div>
               <div class="overflow-x-auto custom-scroll px-6 pb-6">
                 <table class="w-full text-sm text-left">
                   <thead class="text-xs uppercase bg-slate-50 dark:bg-slate-900 text-slate-500">
                     <tr>
-                      <th class="px-4 py-3 rounded-l-lg">KPI</th>
-                      <th class="px-4 py-3">Unit</th>
-                      <th class="px-4 py-3 text-right rounded-r-lg">Value</th>
+                      <th class="px-4 py-3 rounded-l-lg">Guest Source</th>
+                      <th class="px-4 py-3">Source</th>
+                      <th class="px-4 py-3 text-right rounded-r-lg">Traffic</th>
                     </tr>
                   </thead>
                   <tbody id="guest-body" class="divide-y divide-slate-100 dark:divide-slate-900"></tbody>
@@ -1248,6 +1253,7 @@
     const EXTERNAL_FIXED_COST_CSV_URL = './fixed-cost.csv';
     const EXTERNAL_HC_CSV_URL = './DB_HC.csv';
     const EXTERNAL_CHECKIN_CSV_URL = './DB-Checkin.csv';
+    const EXTERNAL_GUEST_CSV_URL = './DB_Guest.csv';
     const DEFAULT_CLUB_AREA_M2 = 3613.6;
     let RAW_DAILY_RECORDS = [];
     let RAW_LOC_RECORDS = [];
@@ -1256,10 +1262,12 @@
     let RAW_FIXED_COST_RECORDS = [];
     let RAW_HC_RECORDS = [];
     let RAW_CHECKIN_RECORDS = [];
+    let RAW_GUEST_RECORDS = [];
     let FIXED_COST_TARGET_MAP = {}; // club -> fixed cost budget lines from fixed-cost.csv
     let STAFFING_COST_MAP = {}; // monthEnd -> club -> { departments, totalCost, totalHC, ptHC }
     let HC_ACTUAL_MAP = {}; // monthEnd -> club -> actual headcount by department from DB_HC.csv. Type is ignored by design.
     let CHECKIN_MAP = {}; // monthEnd -> club -> total checked-in from DB-Checkin.csv.
+    let GUEST_TRAFFIC_MAP = {}; // monthEnd -> club -> guest traffic sources from DB_Guest.csv.
     let CLUB_AREA_MAP = {};
     let VALID_CLUB_SET = new Set();
     let CLUB_TARGET_MAP = {};
@@ -2214,6 +2222,208 @@
       }
     }
 
+
+    const GUEST_SOURCE_ORDER = ['Sales', 'OL', 'Media', 'Referral', 'LWT', 'PNS', 'TM'];
+
+    function normalizeGuestSource(source) {
+      const key = normalizeTextKey(source);
+      if (key === 'sales') return 'Sales';
+      if (key === 'ol' || key === 'online' || key === 'online lead') return 'OL';
+      if (key === 'media' || key === 'mkt' || key === 'marketing') return 'Media';
+      if (key === 'referral' || key === 'referal') return 'Referral';
+      if (key === 'lwt' || key === 'live well together') return 'LWT';
+      if (key === 'pns') return 'PNS';
+      if (key === 'tm') return 'TM';
+      return String(source || '').trim() || 'Other';
+    }
+
+    function addGuestMetricToBucket(bucket, source, value, dateKey) {
+      const src = normalizeGuestSource(source);
+      const val = safeNum(value);
+      if (!src || !val) return;
+      bucket.total += val;
+      bucket.sources[src] = (bucket.sources[src] || 0) + val;
+      if (dateKey) {
+        bucket.days.add(dateKey);
+        bucket.daily[dateKey] = (bucket.daily[dateKey] || 0) + val;
+      }
+    }
+
+    function buildGuestTrafficMap(records) {
+      const map = {};
+      records.forEach(r => {
+        const rawDate = readField(r, ['GuestShowDateTime', 'Guest Show Date Time', 'Date', 'DATE']);
+        const monthEnd = parseMonthTokenToMonthEnd(rawDate);
+        const club = String(readField(r, ['Club', 'CLUB']) || '').trim();
+        if (!monthEnd || !club || club.toLowerCase() === 'club') return;
+        if (VALID_CLUB_SET && VALID_CLUB_SET.size && !VALID_CLUB_SET.has(club)) return;
+
+        const metric = readField(r, ['MetricToShow', 'Metric To Show', 'Metric', 'Source']);
+        const value = readField(r, ['Sum of Number_Guest', 'Number_Guest', 'Number Guest', 'Guest', 'Value']);
+        const dateKey = isoDateKeyFromAny(rawDate) || String(rawDate || '').trim();
+
+        if (!map[monthEnd]) map[monthEnd] = {};
+        if (!map[monthEnd][club]) map[monthEnd][club] = { total: 0, days: new Set(), daily: {}, sources: {} };
+        addGuestMetricToBucket(map[monthEnd][club], metric, value, dateKey);
+      });
+
+      Object.keys(map).forEach(monthEnd => {
+        Object.keys(map[monthEnd]).forEach(club => {
+          const item = map[monthEnd][club];
+          item.dayCount = item.days ? item.days.size : 0;
+          delete item.days;
+        });
+      });
+      return map;
+    }
+
+    function getGuestScopeForMonth(monthEnd) {
+      const monthMap = GUEST_TRAFFIC_MAP[monthEnd];
+      if (!monthMap) return null;
+
+      if (CURRENT_CLUB === 'ALL') {
+        const out = { total: 0, dayCount: 0, daily: {}, sources: {} };
+        Object.entries(monthMap).forEach(([club, value]) => {
+          if (VALID_CLUB_SET && VALID_CLUB_SET.size && !VALID_CLUB_SET.has(club)) return;
+          out.total += value.total || 0;
+          Object.entries(value.sources || {}).forEach(([src, val]) => {
+            out.sources[src] = (out.sources[src] || 0) + (val || 0);
+          });
+          Object.entries(value.daily || {}).forEach(([dateKey, val]) => {
+            out.daily[dateKey] = (out.daily[dateKey] || 0) + (val || 0);
+          });
+        });
+        out.dayCount = Object.keys(out.daily).length;
+        return out;
+      }
+      return monthMap[CURRENT_CLUB] || null;
+    }
+
+    async function loadGuestCsv() {
+      try {
+        const res = await fetch(EXTERNAL_GUEST_CSV_URL, { cache: 'no-store' });
+        if (!res.ok) {
+          console.warn(`Cannot load ${EXTERNAL_GUEST_CSV_URL}. Guest traffic block will show no data.`, res.status);
+          return false;
+        }
+        const text = await res.text();
+        RAW_GUEST_RECORDS = csvToObjectsAutoHeader(text, ['GuestShowDateTime', 'Club', 'MetricToShow', 'Sum of Number_Guest']);
+        GUEST_TRAFFIC_MAP = buildGuestTrafficMap(RAW_GUEST_RECORDS);
+        console.log(`Loaded guest traffic for ${Object.keys(GUEST_TRAFFIC_MAP).length} month(s) from ${EXTERNAL_GUEST_CSV_URL}.`);
+        return Object.keys(GUEST_TRAFFIC_MAP).length > 0;
+      } catch (error) {
+        console.warn('Failed to load DB_Guest.csv.', error);
+        return false;
+      }
+    }
+
+    function updateGuestSourceChart(sourceEntries) {
+      const canvas = document.getElementById('guestSourceChart');
+      if (!canvas || !window.Chart) return;
+      const labels = sourceEntries.map(([src]) => src);
+      const values = sourceEntries.map(([, val]) => val);
+      const isDark = document.documentElement.classList.contains('dark');
+      const palette = ['#0ea5e9', '#22c55e', '#f59e0b', '#f43f5e', '#8b5cf6', '#06b6d4', '#64748b', '#94a3b8'];
+
+      if (guestSourceChart) {
+        guestSourceChart.data.labels = labels;
+        guestSourceChart.data.datasets[0].data = values;
+        guestSourceChart.update();
+        return;
+      }
+      guestSourceChart = new Chart(canvas.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: palette.slice(0, Math.max(values.length, 1)),
+            borderWidth: isDark ? 2 : 1,
+            borderColor: isDark ? '#0f172a' : '#ffffff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: isDark ? '#cbd5e1' : '#64748b', usePointStyle: true, boxWidth: 8 } },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const value = context.parsed || 0;
+                  const pct = total ? (value / total * 100).toFixed(1) : '0.0';
+                  return `${context.label}: ${formatNumber(value)} (${pct}%)`;
+                }
+              }
+            }
+          },
+          cutout: '60%'
+        }
+      });
+    }
+
+    function updateGuestTraffic(selectedPeriod) {
+      const setText = (id, value) => { const el = document.getElementById(id); if (el) el.innerText = value; };
+      const noDataText = currentLang === "en" ? "No data" : "Chưa có data";
+      let total = 0;
+      let days = 0;
+      const sources = {};
+
+      if (selectedPeriod === 'YTD') {
+        HVP_DATA.months.forEach(monthEnd => {
+          const item = getGuestScopeForMonth(monthEnd);
+          if (!item) return;
+          total += item.total || 0;
+          days += item.dayCount || 0;
+          Object.entries(item.sources || {}).forEach(([src, val]) => {
+            sources[src] = (sources[src] || 0) + (val || 0);
+          });
+        });
+      } else {
+        const item = getGuestScopeForMonth(selectedPeriod);
+        if (item) {
+          total = item.total || 0;
+          days = item.dayCount || 0;
+          Object.assign(sources, item.sources || {});
+        } else {
+          total = null;
+          days = null;
+        }
+      }
+
+      const avg = total && days ? total / days : null;
+      setText('guest-kpi-show', total !== null && total !== undefined ? formatNumber(total) : noDataText);
+      setText('guest-kpi-avg-day', avg ? formatNumber(avg) : noDataText);
+      setText('guest-kpi-days', days !== null && days !== undefined ? formatNumber(days) : noDataText);
+
+      const sourceEntries = Object.entries(sources)
+        .filter(([, val]) => val > 0)
+        .sort((a, b) => {
+          const ia = GUEST_SOURCE_ORDER.indexOf(a[0]);
+          const ib = GUEST_SOURCE_ORDER.indexOf(b[0]);
+          if (ia !== -1 || ib !== -1) return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+          return b[1] - a[1];
+        });
+
+      updateGuestSourceChart(sourceEntries);
+
+      const body = document.getElementById('guest-body');
+      if (body) {
+        if (!sourceEntries.length) {
+          body.innerHTML = `<tr><td colspan="3" class="px-4 py-6 text-center text-slate-400">${noDataText}</td></tr>`;
+        } else {
+          body.innerHTML = sourceEntries.map(([src, val]) => `
+            <tr class="hover:bg-slate-50/60 dark:hover:bg-slate-900/40 transition-colors">
+              <td class="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">${src}</td>
+              <td class="px-4 py-3 text-slate-400">DB_Guest.MetricToShow</td>
+              <td class="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">${formatNumber(val)}</td>
+            </tr>
+          `).join('');
+        }
+      }
+    }
+
     async function loadStaffingCostCsv() {
       try {
         const res = await fetch(EXTERNAL_STAFFING_COST_CSV_URL, { cache: 'no-store' });
@@ -2854,6 +3064,7 @@
     // Khai báo các đối tượng Biểu đồ
     let revTrendChart = null;
     let expStructureChart = null;
+    let guestSourceChart = null;
 
     // Language toggle (VI / EN)
     let currentLang = localStorage.getItem("hvp_lang") || "vi";
@@ -2930,7 +3141,7 @@
       "Leavers": "Leavers",
       "Net Movement": "Net Movement",
       "Guest": "Guest",
-      "Theo dõi traffic, NMU và tỷ lệ closing từ guest thành khách hàng": "Track traffic, NMU and guest-to-member closing rate",
+      "Chỉ map lượng show guest traffic theo source; không tính NMU hoặc closing.": "Map guest traffic by source only; no NMU or closing calculation.",
       "Total SHOW": "Total SHOW",
       "# Traffic": "# Traffic",
       "NMU": "NMU",
@@ -3299,6 +3510,7 @@
       // 4. Cập nhật PT Efficiency & Member Activity
       updateOperatingKPIs(selectedPeriod);
       updateCheckinActual(selectedPeriod);
+      updateGuestTraffic(selectedPeriod);
 
       // 5. Cập nhật Bảng Chi phí thực tế GM mới nhất (Cost Items table)
       updateCostBreakdownTable(mIdx, isYTD);
@@ -3579,26 +3791,7 @@
         `).join("");
       }
 
-      // Guest: use daily.csv fields only. If missing, show no data.
-      setText("guest-kpi-show", fmtNumOrNoData(guest.totalShow));
-      setText("guest-kpi-nmu", fmtNumOrNoData(guest.nmu));
-      setText("guest-kpi-closing", fmtNumOrNoData(guest.closingNmu, "%"));
-
-      const guestRows = [
-        ["Total SHOW", "# Traffic", fmtNumOrNoData(guest.totalShow)],
-        ["NMU", "# Clients", fmtNumOrNoData(guest.nmu)],
-        ["% Closing NMU", "%", fmtNumOrNoData(guest.closingNmu, "%")]
-      ];
-      const guestBody = document.getElementById("guest-body");
-      if (guestBody) {
-        guestBody.innerHTML = guestRows.map(r => `
-          <tr class="hover:bg-slate-50/60 dark:hover:bg-slate-900/40 transition-colors">
-            <td class="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">${i18n(r[0])}</td>
-            <td class="px-4 py-3 text-slate-400">${i18n(r[1])}</td>
-            <td class="px-4 py-3 text-right font-bold text-slate-900 dark:text-white">${r[2]}</td>
-          </tr>
-        `).join("");
-      }
+      // Guest traffic is mapped from DB_Guest.csv in updateGuestTraffic().
 
       // Contracts: show only mapped fields from daily.csv; missing fields display no data.
       setText("contract-kpi-pt", fmtNumOrNoData(contracts.pt));
@@ -4073,6 +4266,7 @@
       await loadStaffingCostCsv();
       await loadHeadcountCsv();
       await loadCheckinCsv();
+      await loadGuestCsv();
       if (CURRENT_USER && CURRENT_USER.role === 'GM') {
         rebuildClubSelect(RAW_DAILY_RECORDS);
         CURRENT_CLUB = CURRENT_USER.club;
